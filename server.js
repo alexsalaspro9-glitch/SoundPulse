@@ -22,7 +22,7 @@ if (!fs.existsSync('./uploads')) {
 const DB_FILE = path.join(__dirname, 'db.json');
 
 let users = {
-    'admin': { password: '123', avatar: 'https://via.placeholder.com/150', follows: [] }
+    'admin': { password: '123', avatar: 'https://via.placeholder.com/150', follows: [], notifications: [] }
 };
 let feedPosts = [];
 let playlists = { 'admin': [] };
@@ -36,6 +36,12 @@ function loadDatabase() {
             users = parsed.users || users;
             feedPosts = parsed.feedPosts || [];
             playlists = parsed.playlists || playlists;
+            
+            // Garantizar que la propiedad notifications exista en todos los usuarios
+            Object.keys(users).forEach(u => {
+                if (!users[u].notifications) users[u].notifications = [];
+            });
+
             console.log('✅ Base de datos cargada correctamente desde db.json');
         } catch (err) {
             console.error('❌ Error al leer db.json, usando datos en memoria:', err);
@@ -82,7 +88,7 @@ app.post('/api/register', (req, res) => {
     const u = username.toLowerCase().trim();
     if (users[u]) return res.status(400).json({ error: 'El usuario ya existe' });
 
-    users[u] = { password, avatar: '/uploads/default-avatar.png', follows: [] };
+    users[u] = { password, avatar: '/uploads/default-avatar.png', follows: [], notifications: [] };
     playlists[u] = [];
     saveDatabase();
     res.json({ success: true, username: u });
@@ -98,7 +104,7 @@ app.post('/api/login', (req, res) => {
     res.json({ success: true, username: u, avatar: users[u].avatar });
 });
 
-// Cambiar foto de perfil (Soporta /api/user/avatar y /api/update-avatar)
+// Cambiar foto de perfil
 const handleAvatarUpload = (req, res) => {
     const username = req.body.username;
     const u = username ? username.toLowerCase().trim() : null;
@@ -280,15 +286,35 @@ app.post('/api/posts/:id/comment', (req, res) => {
     const post = feedPosts.find(p => p.id === req.params.id);
     if (!post) return res.status(404).json({ error: 'Post no encontrado' });
 
+    const u = (username || '').toLowerCase().trim();
+    const userAvatar = users[u] ? users[u].avatar : 'https://via.placeholder.com/150';
+
     const newComment = {
         id: Date.now().toString(),
-        username,
+        username: u,
+        avatar: userAvatar,
         text,
         date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     post.comments.push(newComment);
     post.commentsCount = post.comments.length;
+
+    // Generar notificación al autor del post si no es su propio comentario
+    if (post.username !== u && users[post.username]) {
+        const notif = {
+            id: Date.now().toString(),
+            fromUser: u,
+            type: 'comment',
+            postId: post.id,
+            text: `comentó en tu publicación: "${text.substring(0, 20)}..."`,
+            date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: false
+        };
+        users[post.username].notifications.unshift(notif);
+        io.to(post.username).emit('new_notification', notif);
+    }
+
     saveDatabase();
     res.json({ commentsCount: post.comments.length, comment: newComment });
 });
@@ -329,9 +355,10 @@ io.on('connection', (socket) => {
 
         if (mode === 'register') {
             if (users[u]) return cb({ success: false, message: 'El usuario ya existe.' });
-            users[u] = { password, avatar: 'https://via.placeholder.com/150', follows: [] };
+            users[u] = { password, avatar: 'https://via.placeholder.com/150', follows: [], notifications: [] };
             playlists[u] = [];
             socketUser = u;
+            socket.join(u);
             saveDatabase();
             return cb({ success: true, user: { username: u, avatar: users[u].avatar, following: users[u].follows, followers: [] } });
         } else {
@@ -339,6 +366,7 @@ io.on('connection', (socket) => {
                 return cb({ success: false, message: 'Usuario o contraseña incorrectos.' });
             }
             socketUser = u;
+            socket.join(u);
             return cb({ success: true, user: { username: u, avatar: users[u].avatar, following: users[u].follows, followers: [] } });
         }
     });
@@ -348,9 +376,10 @@ io.on('connection', (socket) => {
         if (!u || !data.password) return cb && cb({ success: false, message: 'Datos incompletos' });
         if (users[u]) return cb && cb({ success: false, message: 'El usuario ya existe' });
 
-        users[u] = { password: data.password, avatar: 'https://via.placeholder.com/150', follows: [] };
+        users[u] = { password: data.password, avatar: 'https://via.placeholder.com/150', follows: [], notifications: [] };
         playlists[u] = [];
         socketUser = u;
+        socket.join(u);
         saveDatabase();
         cb && cb({ success: true, user: { username: u, avatar: users[u].avatar } });
     });
@@ -361,6 +390,7 @@ io.on('connection', (socket) => {
             return cb && cb({ success: false, message: 'Usuario o contraseña incorrectos' });
         }
         socketUser = u;
+        socket.join(u);
         cb && cb({ success: true, user: { username: u, avatar: users[u].avatar } });
     });
 
@@ -384,6 +414,20 @@ io.on('connection', (socket) => {
         } else {
             post.likedBy.push(u);
             post.likes = (post.likes || 0) + 1;
+
+            if (post.username !== u && users[post.username]) {
+                const notif = {
+                    id: Date.now().toString(),
+                    fromUser: u,
+                    type: 'like',
+                    postId: post.id,
+                    text: 'le gustó tu publicación.',
+                    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    read: false
+                };
+                users[post.username].notifications.unshift(notif);
+                io.to(post.username).emit('new_notification', notif);
+            }
         }
 
         saveDatabase();
@@ -434,8 +478,21 @@ io.on('connection', (socket) => {
 
         if (users[c] && users[t]) {
             const idx = users[c].follows.indexOf(t);
-            if (idx > -1) users[c].follows.splice(idx, 1);
-            else users[c].follows.push(t);
+            if (idx > -1) {
+                users[c].follows.splice(idx, 1);
+            } else {
+                users[c].follows.push(t);
+                const notif = {
+                    id: Date.now().toString(),
+                    fromUser: c,
+                    type: 'follow',
+                    text: 'comenzó a seguirte.',
+                    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    read: false
+                };
+                users[t].notifications.unshift(notif);
+                io.to(t).emit('new_notification', notif);
+            }
 
             saveDatabase();
             const isFollowing = users[c].follows.includes(t);
@@ -470,16 +527,47 @@ io.on('connection', (socket) => {
     socket.on('add-comment', (data, cb) => {
         const post = feedPosts.find(p => p.id === data.postId);
         if (post && socketUser) {
+            const userAvatar = users[socketUser] ? users[socketUser].avatar : 'https://via.placeholder.com/150';
             const newComment = {
                 id: Date.now().toString(),
                 username: socketUser,
+                avatar: userAvatar,
                 text: data.text,
-                date: new Date().toLocaleTimeString()
+                date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
             post.comments.push(newComment);
             post.commentsCount = post.comments.length;
+
+            if (post.username !== socketUser && users[post.username]) {
+                const notif = {
+                    id: Date.now().toString(),
+                    fromUser: socketUser,
+                    type: 'comment',
+                    postId: post.id,
+                    text: `comentó en tu publicación: "${data.text.substring(0, 20)}..."`,
+                    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    read: false
+                };
+                users[post.username].notifications.unshift(notif);
+                io.to(post.username).emit('new_notification', notif);
+            }
+
             saveDatabase();
             if (typeof cb === 'function') cb({ success: true, comment: newComment });
+            io.emit('update-post-comments-count', { postId: post.id, commentsCount: post.commentsCount });
+        }
+    });
+
+    socket.on('get-notifications', (data, cb) => {
+        if (socketUser && users[socketUser]) {
+            if (typeof cb === 'function') cb(users[socketUser].notifications || []);
+        }
+    });
+
+    socket.on('mark-notifications-read', () => {
+        if (socketUser && users[socketUser] && users[socketUser].notifications) {
+            users[socketUser].notifications.forEach(n => n.read = true);
+            saveDatabase();
         }
     });
 
