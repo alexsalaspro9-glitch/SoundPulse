@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SoundPulse | TikTok Music & PC Control</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+    <!-- PANTALLA DE LOGIN / REGISTRO -->
+    <div id="auth-screen" class="screen active">
+        <div class="auth-card">
+            <h1 class="logo">SoundPulse</h1>
+            <p class="subtitle">Crear cuenta (Regla 60 días activa)</p>
+
+            <form id="auth-form" onsubmit="event.preventDefault();">
+                <div class="input-group">
+                    <input type="text" id="username" placeholder="Usuario" required autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Contraseña" required>
+                </div>
+                <div class="button-group">
+                    <button type="button" class="btn btn-primary" onclick="handleAuth('login')">Entrar</button>
+                    <button type="button" class="btn btn-secondary" onclick="handleAuth('register')">Crear Cuenta</button>
+                </div>
+            </form>
+            <p id="auth-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- PANTALLA PRINCIPAL (TIKTOK FEED + CONTROL) -->
+    <div id="app-screen" class="screen">
+        <header class="app-header">
+            <span class="brand">SoundPulse</span>
+            <div class="header-right">
+                <span id="user-display" class="user-badge"></span>
+                <button class="btn-upload" onclick="openUploadModal()">+ Subir Clip</button>
+                <button class="btn-mode" id="pc-mode-btn" onclick="togglePCMode()">Modo PC: OFF</button>
+            </div>
+        </header>
+
+        <!-- FEED VERTICAL TIKTOK -->
+        <main class="feed-container" id="feed-container">
+            <!-- Los clips se cargan dinámicamente desde la API / JS -->
+        </main>
+
+        <!-- REPRODUCTOR FLOTANTE EN PC -->
+        <div id="player-bar" class="player-bar">
+            <div class="now-playing">
+                <strong id="player-title">Esperando canción...</strong>
+                <span id="player-artist">Modo Remoto</span>
+            </div>
+            <div class="player-controls">
+                <button class="btn-ctrl" onclick="controlMedia('pause')">⏯️</button>
+                <button class="btn-ctrl" onclick="controlMedia('stop')">⏹️</button>
+            </div>
+            <audio id="audio-element"></audio>
+        </div>
+    </div>
+
+    <!-- MODAL PARA SUBIR CLIPS DE MÚSICA -->
+    <div id="upload-modal" class="modal">
+        <div class="modal-content">
+            <h3>Subir Clip de Música</h3>
+            <form id="upload-form" onsubmit="submitTrack(event)">
+                <input type="text" id="track-title" placeholder="Título de la canción" required>
+                <input type="text" id="track-artist" placeholder="Artista o Creador" required>
+                <input type="file" id="track-file" accept="audio/*" required>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Publicar Clip</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
