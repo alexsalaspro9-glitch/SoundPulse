@@ -18,21 +18,51 @@ if (!fs.existsSync('./uploads')) {
     fs.mkdirSync('./uploads');
 }
 
+// PERSISTENCIA DE DATOS CON ARCHIVO JSON
+const DB_FILE = path.join(__dirname, 'db.json');
+
+let users = {
+    'admin': { password: '123', avatar: 'https://via.placeholder.com/150', follows: [] }
+};
+let feedPosts = [];
+let playlists = { 'admin': [] };
+
+// Cargar datos al iniciar el servidor
+function loadDatabase() {
+    if (fs.existsSync(DB_FILE)) {
+        try {
+            const data = fs.readFileSync(DB_FILE, 'utf-8');
+            const parsed = JSON.parse(data);
+            users = parsed.users || users;
+            feedPosts = parsed.feedPosts || [];
+            playlists = parsed.playlists || playlists;
+            console.log('✅ Base de datos cargada correctamente desde db.json');
+        } catch (err) {
+            console.error('❌ Error al leer db.json, usando datos en memoria:', err);
+        }
+    } else {
+        saveDatabase();
+    }
+}
+
+// Guardar datos automáticamente
+function saveDatabase() {
+    try {
+        const data = JSON.stringify({ users, feedPosts, playlists }, null, 2);
+        fs.writeFileSync(DB_FILE, data, 'utf-8');
+    } catch (err) {
+        console.error('❌ Error al guardar en db.json:', err);
+    }
+}
+
+loadDatabase();
+
 // Configuración de Multer para archivos e imágenes de perfil
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/'),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
-
-// BASE DE DATOS EN MEMORIA
-// Se preserva/inicializa la cuenta principal para que jamás se borre
-let users = {
-    'admin': { password: '123', avatar: 'https://via.placeholder.com/150', follows: [] }
-};
-let feedPosts = [];   // Publicaciones para el feed "Para Ti"
-let playlists = { 'admin': [] };   // { username: [ { id, name, coverColor, songs: [] } ] }
-let messages = [];    // { from, to, text, date }
 
 // Helper para ID de YouTube
 function extractYoutubeId(url) {
@@ -54,6 +84,7 @@ app.post('/api/register', (req, res) => {
 
     users[u] = { password, avatar: '/uploads/default-avatar.png', follows: [] };
     playlists[u] = [];
+    saveDatabase();
     res.json({ success: true, username: u });
 });
 
@@ -76,6 +107,7 @@ const handleAvatarUpload = (req, res) => {
 
     const avatarUrl = `/uploads/${req.file.filename}`;
     users[u].avatar = avatarUrl;
+    saveDatabase();
     res.json({ success: true, avatar: avatarUrl, avatarUrl });
 };
 
@@ -107,6 +139,7 @@ app.post('/api/user/follow', (req, res) => {
         users[c].follows.push(t);
     }
 
+    saveDatabase();
     const isFollowing = users[c].follows.includes(t);
     const isMutual = isFollowing && users[t].follows.includes(c);
 
@@ -117,13 +150,11 @@ app.post('/api/user/follow', (req, res) => {
 // PLAYLISTS
 // ==========================================
 
-// Obtener playlists del usuario
 app.get('/api/playlists/:username', (req, res) => {
     const u = req.params.username.toLowerCase().trim();
     res.json(playlists[u] || []);
 });
 
-// Crear Playlist
 app.post('/api/playlists/create', (req, res) => {
     const { username, name, coverColor } = req.body;
     if (!username) return res.status(400).json({ error: 'Nombre de usuario requerido' });
@@ -137,10 +168,10 @@ app.post('/api/playlists/create', (req, res) => {
         songs: []
     };
     playlists[u].push(newPl);
+    saveDatabase();
     res.json(newPl);
 });
 
-// Añadir canción a Playlist (Máximo 20 canciones)
 app.post('/api/playlists/add-song', (req, res) => {
     const { username, playlistId, title, artist, url, coverColor } = req.body;
     if (!username) return res.status(400).json({ error: 'Nombre de usuario requerido' });
@@ -164,6 +195,7 @@ app.post('/api/playlists/add-song', (req, res) => {
     };
 
     targetPl.songs.push(song);
+    saveDatabase();
     res.json({ success: true, playlist: targetPl });
 });
 
@@ -171,7 +203,6 @@ app.post('/api/playlists/add-song', (req, res) => {
 // FEED GLOBAL / PARA TI Y POSTS
 // ==========================================
 
-// Subir Post (Audio / Video al Feed)
 const handlePostUpload = (req, res) => {
     const { username, title, description, youtubeUrl } = req.body;
     if (!username) return res.status(400).json({ error: 'Usuario es requerido', success: false });
@@ -217,6 +248,7 @@ const handlePostUpload = (req, res) => {
         coverUrl,
         type,
         isYoutube,
+        youtubeUrl: youtubeUrl || '',
         youtubeId: ytId,
         likes: 0,
         likedBy: [],
@@ -225,6 +257,7 @@ const handlePostUpload = (req, res) => {
     };
 
     feedPosts.unshift(post);
+    saveDatabase();
     res.json({ success: true, post });
 };
 
@@ -232,19 +265,16 @@ const cpUpload = upload.fields([{ name: 'media', maxCount: 1 }, { name: 'cover',
 app.post('/api/posts/create', cpUpload, handlePostUpload);
 app.post('/api/upload', cpUpload, handlePostUpload);
 
-// Obtener Feed Global
 app.get('/api/posts', (req, res) => {
     res.json(feedPosts);
 });
 
-// Obtener mis posts
 app.get('/api/posts/user/:username', (req, res) => {
     const u = req.params.username.toLowerCase().trim();
     const myPosts = feedPosts.filter(p => p.username === u);
     res.json(myPosts);
 });
 
-// Comentar en Post
 app.post('/api/posts/:id/comment', (req, res) => {
     const { username, text } = req.body;
     const post = feedPosts.find(p => p.id === req.params.id);
@@ -259,6 +289,7 @@ app.post('/api/posts/:id/comment', (req, res) => {
 
     post.comments.push(newComment);
     post.commentsCount = post.comments.length;
+    saveDatabase();
     res.json({ commentsCount: post.comments.length, comment: newComment });
 });
 
@@ -288,7 +319,6 @@ app.get('/api/inbox/friends/:username', (req, res) => {
 io.on('connection', (socket) => {
     let socketUser = null;
 
-    // Manejo unificado de Autenticación por Sockets
     socket.on('auth-request', (data, cb) => {
         const { mode, username, password } = data;
         const u = (username || '').toLowerCase().trim();
@@ -302,6 +332,7 @@ io.on('connection', (socket) => {
             users[u] = { password, avatar: 'https://via.placeholder.com/150', follows: [] };
             playlists[u] = [];
             socketUser = u;
+            saveDatabase();
             return cb({ success: true, user: { username: u, avatar: users[u].avatar, following: users[u].follows, followers: [] } });
         } else {
             if (!users[u] || users[u].password !== password) {
@@ -320,6 +351,7 @@ io.on('connection', (socket) => {
         users[u] = { password: data.password, avatar: 'https://via.placeholder.com/150', follows: [] };
         playlists[u] = [];
         socketUser = u;
+        saveDatabase();
         cb && cb({ success: true, user: { username: u, avatar: users[u].avatar } });
     });
 
@@ -354,6 +386,7 @@ io.on('connection', (socket) => {
             post.likes = (post.likes || 0) + 1;
         }
 
+        saveDatabase();
         const isLiked = post.likedBy.includes(u);
         if (typeof cb === 'function') cb({ success: true, likes: post.likes, isLiked });
     });
@@ -404,6 +437,7 @@ io.on('connection', (socket) => {
             if (idx > -1) users[c].follows.splice(idx, 1);
             else users[c].follows.push(t);
 
+            saveDatabase();
             const isFollowing = users[c].follows.includes(t);
             const targetFollowersCount = Object.keys(users).filter(k => users[k].follows.includes(t)).length;
 
@@ -424,6 +458,7 @@ io.on('connection', (socket) => {
             songs: []
         };
         playlists[socketUser].push(newPl);
+        saveDatabase();
         if (typeof cb === 'function') cb({ success: true, playlist: newPl });
     });
 
@@ -443,6 +478,7 @@ io.on('connection', (socket) => {
             };
             post.comments.push(newComment);
             post.commentsCount = post.comments.length;
+            saveDatabase();
             if (typeof cb === 'function') cb({ success: true, comment: newComment });
         }
     });
@@ -450,6 +486,7 @@ io.on('connection', (socket) => {
     socket.on('update-avatar', (data) => {
         if (socketUser && data.avatar) {
             users[socketUser].avatar = data.avatar;
+            saveDatabase();
         }
     });
 

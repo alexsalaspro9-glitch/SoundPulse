@@ -193,7 +193,7 @@
             flex: 1;
             position: relative;
             overflow: hidden;
-            margin-bottom: 110px; /* Space for player & bottom nav */
+            margin-bottom: 110px;
         }
 
         .tab-content {
@@ -232,10 +232,11 @@
             position: relative;
         }
 
-        .media-container video, .media-container img {
+        .media-container video, .media-container img, .media-container iframe {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            border: none;
         }
 
         .audio-wave-bg {
@@ -612,7 +613,6 @@
             color: #888;
         }
 
-        /* SECCIONES PERFIL: MIS VIDEOS Y LIKES */
         .profile-subtabs {
             display: flex;
             justify-content: space-around;
@@ -651,13 +651,14 @@
             position: relative;
         }
 
-        .profile-post-item img, .profile-post-item video {
+        .profile-post-item img, .profile-post-item video, .profile-post-item iframe {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            border: none;
         }
 
-        /* --- BOTTOM NAV BAR (TIKTOK STYLE) --- */
+        /* --- BOTTOM NAV BAR --- */
         .bottom-nav-tiktok {
             position: absolute;
             bottom: 0;
@@ -695,7 +696,6 @@
             fill: currentColor;
         }
 
-        /* UPLOAD BUTTON (+) */
         .nav-upload-btn {
             width: 45px;
             height: 30px;
@@ -721,7 +721,6 @@
             font-size: 1.2rem;
         }
 
-        /* --- SIDE MENU SLIDE-OUT --- */
         .side-menu {
             position: absolute;
             top: 0;
@@ -749,7 +748,6 @@
             cursor: pointer;
         }
 
-        /* --- MODALS --- */
         .modal {
             display: none;
             position: absolute;
@@ -833,7 +831,7 @@
 
     <div class="mobile-container">
         
-        <!-- ================= AUTHENTICATION SCREEN ================= -->
+        <!-- AUTHENTICATION SCREEN -->
         <div id="auth-screen" class="screen active">
             <div class="auth-card">
                 <div class="auth-logo">SoundPulse</div>
@@ -860,20 +858,18 @@
             </div>
         </div>
 
-        <!-- ================= MAIN APP SCREEN ================= -->
+        <!-- MAIN APP SCREEN -->
         <div id="app-screen" class="screen">
             
-            <!-- HEADER -->
             <div class="top-header">
                 <button class="menu-btn" onclick="toggleSideMenu()">☰</button>
                 <div class="app-title" id="top-title">FEED</div>
-                <div style="width: 24px;"></div> <!-- Spacer -->
+                <div style="width: 24px;"></div>
             </div>
 
-            <!-- CONTENT AREA -->
             <div class="content-area">
                 
-                <!-- TAB 1: TIKTOK FEED -->
+                <!-- TAB 1: FEED -->
                 <div id="tab-feed" class="tab-content active">
                     <div id="feed-container" style="height: 100%; overflow-y: scroll; snap-type: y mandatory;">
                         <div class="feed-post">
@@ -899,16 +895,14 @@
                     </div>
                 </div>
 
-                <!-- TAB 2: SEARCH / DISCOVER -->
+                <!-- TAB 2: SEARCH -->
                 <div id="tab-search" class="tab-content">
                     <div class="search-container">
                         <div class="search-bar-box">
                             <input type="text" id="search-input" placeholder="Buscar usuarios o temas...">
                             <button onclick="searchUsers()">Buscar</button>
                         </div>
-                        <div id="search-results">
-                            <!-- Results inject here -->
-                        </div>
+                        <div id="search-results"></div>
                     </div>
                 </div>
 
@@ -916,9 +910,7 @@
                 <div id="tab-playlists" class="tab-content">
                     <div class="playlists-container">
                         <button class="create-pl-btn" onclick="openCreatePlaylistModal()">+ Crear Nueva Playlist</button>
-                        <div class="playlists-grid" id="playlists-grid">
-                            <!-- Playlists inject here -->
-                        </div>
+                        <div class="playlists-grid" id="playlists-grid"></div>
                     </div>
                 </div>
 
@@ -926,13 +918,11 @@
                 <div id="tab-myposts" class="tab-content">
                     <div style="padding: 70px 15px 15px 15px;">
                         <h3>Mis Publicaciones</h3>
-                        <div class="profile-posts-grid" id="my-posts-grid">
-                            <!-- User uploaded posts -->
-                        </div>
+                        <div class="profile-posts-grid" id="my-posts-grid"></div>
                     </div>
                 </div>
 
-                <!-- TAB 5: USER PROFILE -->
+                <!-- TAB 5: PROFILE -->
                 <div id="tab-profile" class="tab-content">
                     <div class="profile-container">
                         <div class="profile-avatar-wrapper">
@@ -958,36 +948,31 @@
                         
                         <div id="profile-actions" style="margin-bottom: 15px;"></div>
 
-                        <!-- SUBTABS DEBAJO DE "CAMBIAR FOTO / SEGUIR" -->
                         <div class="profile-subtabs">
                             <button id="subtab-btn-myposts" class="profile-subtab-btn active" onclick="switchProfileSubTab('myposts')">Mis videos</button>
                             <button id="subtab-btn-likes" class="profile-subtab-btn" onclick="switchProfileSubTab('likes')">Likes</button>
                         </div>
 
-                        <div class="profile-posts-grid" id="user-posts-grid">
-                            <!-- Posts o Likes grid -->
-                        </div>
+                        <div class="profile-posts-grid" id="user-posts-grid"></div>
                     </div>
                 </div>
 
             </div>
 
-            <!-- COMMENTS PANEL OVERLAY -->
+            <!-- COMMENTS PANEL -->
             <div class="comments-panel" id="comments-panel">
                 <div class="comments-header">
                     Comentarios
                     <button class="close-btn" onclick="toggleComments(null)">✕</button>
                 </div>
-                <div class="comments-list" id="comments-list">
-                    <!-- Comments injected here -->
-                </div>
+                <div class="comments-list" id="comments-list"></div>
                 <div class="comment-input-area">
                     <input type="text" id="comment-input" placeholder="Añade un comentario...">
                     <button onclick="addComment()">Enviar</button>
                 </div>
             </div>
 
-            <!-- GLOBAL AUDIO PLAYER BAR -->
+            <!-- GLOBAL PLAYER -->
             <div class="global-player-bar">
                 <img src="https://via.placeholder.com/150" id="global-player-cover" class="player-img" alt="Cover">
                 <div class="player-details">
@@ -1004,7 +989,7 @@
                 <audio id="global-audio-player"></audio>
             </div>
 
-            <!-- BOTTOM NAVIGATION BAR (TIKTOK STYLE) -->
+            <!-- BOTTOM NAVIGATION -->
             <div class="bottom-nav-tiktok">
                 <button class="nav-item active" onclick="switchTab('feed')">
                     <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -1022,7 +1007,7 @@
                     <span>Playlists</span>
                 </button>
                 <button class="nav-item" onclick="switchTab('profile')">
-                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     <span>Perfil</span>
                 </button>
             </div>
@@ -1035,7 +1020,7 @@
 
         </div>
 
-        <!-- ================= MODAL: SUBIR CONTENIDO ================= -->
+        <!-- MODAL UPLOAD -->
         <div class="modal" id="modal-upload">
             <div class="modal-body">
                 <div class="modal-title">Publicar Sonido / Video</div>
@@ -1048,7 +1033,11 @@
                     <input type="text" id="post-desc-input" placeholder="Añade una pequeña descripción">
                 </div>
                 <div class="modal-input-group">
-                    <label>Archivo Multimedia (Audio MP3 / Video MP4)</label>
+                    <label>Enlace de YouTube (Opcional)</label>
+                    <input type="text" id="post-youtube-input" placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+                <div class="modal-input-group">
+                    <label>O Archivo Multimedia (Audio MP3 / Video MP4)</label>
                     <input type="file" id="post-file-input" accept="audio/*,video/*" onchange="checkFileType(event)">
                 </div>
                 <div class="modal-input-group" id="mp3-cover-container" style="display:none;">
@@ -1062,7 +1051,7 @@
             </div>
         </div>
 
-        <!-- ================= MODAL: CREAR PLAYLIST ================= -->
+        <!-- MODAL PLAYLIST -->
         <div class="modal" id="modal-playlist">
             <div class="modal-body">
                 <div class="modal-title">Crear Nueva Playlist</div>
@@ -1079,7 +1068,6 @@
 
     </div>
 
-    <!-- ================= JAVASCRIPT LOGIC ================= -->
     <script>
         const socket = io();
 
@@ -1089,6 +1077,32 @@
         let activeCommentsPostId = null;
         let currentProfileData = null;
         let currentProfileSubTab = 'myposts';
+
+        // COMPROBAR SESIÓN AL CARGAR LA PÁGINA
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUser = localStorage.getItem('soundpulse_user');
+            if (savedUser) {
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    initApp();
+                } catch(e) {
+                    localStorage.removeItem('soundpulse_user');
+                }
+            }
+
+            const userInput = document.getElementById('auth-user');
+            const passInput = document.getElementById('auth-pass');
+
+            const submitOnEnter = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAuth();
+                }
+            };
+
+            if (userInput) userInput.addEventListener('keypress', submitOnEnter);
+            if (passInput) passInput.addEventListener('keypress', submitOnEnter);
+        });
 
         function setAuthMode(mode) {
             currentAuthMode = mode;
@@ -1128,6 +1142,7 @@
                 ackReceived = true;
                 if (response && response.success) {
                     currentUser = response.user;
+                    localStorage.setItem('soundpulse_user', JSON.stringify(currentUser));
                     initApp();
                 } else {
                     if (errorText) {
@@ -1143,21 +1158,6 @@
                 }
             }, 5000);
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const userInput = document.getElementById('auth-user');
-            const passInput = document.getElementById('auth-pass');
-
-            const submitOnEnter = (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAuth();
-                }
-            };
-
-            if (userInput) userInput.addEventListener('keypress', submitOnEnter);
-            if (passInput) passInput.addEventListener('keypress', submitOnEnter);
-        });
 
         function initApp() {
             document.getElementById('auth-screen')?.classList.remove('active');
@@ -1187,7 +1187,7 @@
             };
             
             const topTitle = document.getElementById('top-title');
-            if (topTitle) topTitle.innerText = titles[tabId] || 'SOUNDPULSE';
+            if (topTitle) topTitle.innerText = titles[topTitle] || 'SOUNDPULSE';
 
             if (tabId === 'myposts') {
                 loadMyPosts();
@@ -1208,6 +1208,20 @@
             });
         }
 
+        function getYouTubeEmbedUrl(url) {
+            if (!url) return null;
+            let videoId = null;
+            if (url.includes('youtu.be/')) {
+                videoId = url.split('youtu.be/')[1]?.split('?')[0];
+            } else if (url.includes('youtube.com/watch')) {
+                const urlParams = new URLSearchParams(url.split('?')[1]);
+                videoId = urlParams.get('v');
+            } else if (url.includes('youtube.com/embed/')) {
+                videoId = url.split('youtube.com/embed/')[1]?.split('?')[0];
+            }
+            return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+        }
+
         function renderFeed(posts) {
             const container = document.getElementById('feed-container');
             if (!container) return;
@@ -1223,10 +1237,23 @@
                 postEl.className = 'feed-post';
 
                 let mediaHTML = '';
-                if (post.type === 'video') {
+                if (post.youtubeUrl) {
+                    const embedUrl = getYouTubeEmbedUrl(post.youtubeUrl);
+                    if (embedUrl) {
+                        mediaHTML = `
+                            <div class="media-container">
+                                <iframe src="${embedUrl}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                            </div>`;
+                    } else {
+                        mediaHTML = `
+                            <div class="audio-wave-bg">
+                                <a href="${post.youtubeUrl}" target="_blank" style="color: #ff007f; text-decoration: underline;">Ver Video en YouTube</a>
+                            </div>`;
+                    }
+                } else if (post.type === 'video') {
                     mediaHTML = `
                         <div class="media-container">
-                            <video src="${post.mediaUrl}" loop onclick="playTrack('${post.mediaUrl}', '${post.title}', '${post.username}', '${post.coverUrl}')"></video>
+                            <video src="${post.mediaUrl}" loop controls onclick="playTrack('${post.mediaUrl}', '${post.title}', '${post.username}', '${post.coverUrl}')"></video>
                         </div>`;
                 } else {
                     mediaHTML = `
@@ -1276,7 +1303,7 @@
             const artistEl = document.getElementById('global-player-artist');
             const coverEl = document.getElementById('global-player-cover');
 
-            if (audio) {
+            if (audio && url) {
                 audio.src = url;
                 audio.play();
                 if (titleEl) titleEl.innerText = title || 'Reproduciendo';
@@ -1371,11 +1398,20 @@
         function submitPost() {
             const title = document.getElementById('post-title-input')?.value.trim();
             const desc = document.getElementById('post-desc-input')?.value.trim();
+            const youtubeUrl = document.getElementById('post-youtube-input')?.value.trim();
             const fileInput = document.getElementById('post-file-input');
             const coverInput = document.getElementById('post-cover-input');
 
-            if (!title || !fileInput || fileInput.files.length === 0) {
-                alert('Por favor añade un título y un archivo multimedia.');
+            const hasFile = fileInput && fileInput.files.length > 0;
+            const hasYoutube = youtubeUrl !== '';
+
+            if (!title) {
+                alert('Por favor añade un título a tu publicación.');
+                return;
+            }
+
+            if (!hasFile && !hasYoutube) {
+                alert('Debes subir un archivo MP3/MP4 o ingresar una URL de YouTube.');
                 return;
             }
 
@@ -1383,7 +1419,13 @@
             formData.append('title', title);
             formData.append('description', desc || '');
             formData.append('username', currentUser ? currentUser.username : '');
-            formData.append('media', fileInput.files[0]);
+            
+            if (hasYoutube) {
+                formData.append('youtubeUrl', youtubeUrl);
+            }
+            if (hasFile) {
+                formData.append('media', fileInput.files[0]);
+            }
             if (coverInput && coverInput.files[0]) {
                 formData.append('cover', coverInput.files[0]);
             }
@@ -1394,15 +1436,23 @@
             }).then(r => r.json()).then(data => {
                 if (data.success) {
                     closeModal('modal-upload');
+                    document.getElementById('post-title-input').value = '';
+                    document.getElementById('post-desc-input').value = '';
+                    document.getElementById('post-youtube-input').value = '';
+                    if (fileInput) fileInput.value = '';
+                    if (coverInput) coverInput.value = '';
                     loadFeed();
                 } else {
                     alert(data.error || 'Error al subir la publicación.');
                 }
+            }).catch(err => {
+                alert('Error al conectar con el servidor.');
             });
         }
 
         function logout() {
             currentUser = null;
+            localStorage.removeItem('soundpulse_user');
             document.getElementById('app-screen')?.classList.remove('active');
             document.getElementById('auth-screen')?.classList.add('active');
             
@@ -1443,7 +1493,10 @@
                     (data.posts || []).forEach(post => {
                         const item = document.createElement('div');
                         item.className = 'profile-post-item';
-                        if (post.type === 'video') {
+                        if (post.youtubeUrl) {
+                            const embedUrl = getYouTubeEmbedUrl(post.youtubeUrl);
+                            item.innerHTML = embedUrl ? `<iframe src="${embedUrl}"></iframe>` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff007f;">YouTube</div>`;
+                        } else if (post.type === 'video') {
                             item.innerHTML = `<video src="${post.mediaUrl}"></video>`;
                         } else {
                             item.innerHTML = `<img src="${post.coverUrl || 'https://via.placeholder.com/150'}">`;
@@ -1511,7 +1564,10 @@
             list.forEach(post => {
                 const item = document.createElement('div');
                 item.className = 'profile-post-item';
-                if (post.type === 'video') {
+                if (post.youtubeUrl) {
+                    const embedUrl = getYouTubeEmbedUrl(post.youtubeUrl);
+                    item.innerHTML = embedUrl ? `<iframe src="${embedUrl}"></iframe>` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff007f;">YouTube</div>`;
+                } else if (post.type === 'video') {
                     item.innerHTML = `<video src="${post.mediaUrl}"></video>`;
                 } else {
                     item.innerHTML = `<img src="${post.coverUrl || 'https://via.placeholder.com/150'}">`;
@@ -1546,6 +1602,7 @@
                 .then(data => {
                     if (data.success) {
                         currentUser.avatar = data.avatarUrl;
+                        localStorage.setItem('soundpulse_user', JSON.stringify(currentUser));
                         loadProfileData(currentUser.username);
                     }
                 });
