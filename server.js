@@ -12,12 +12,56 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Almacenamiento local de tracks
+// Almacenamiento local
+let users = {}; // { username: password }
 let tracks = [];
 
-// Configuración de subir archivos mp3/video
 const upload = multer({ dest: 'uploads/' });
 
+// ==========================================
+// RUTAS DE AUTENTICACIÓN (FALTABAN ESTAS DOS)
+// ==========================================
+
+// Registrar cuenta
+app.post('/api/register', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Completa todos los campos' });
+    }
+    
+    const cleanUser = username.toLowerCase().trim();
+    
+    if (users[cleanUser]) {
+        return res.status(400).json({ error: 'El usuario ya existe' });
+    }
+
+    users[cleanUser] = password;
+    res.json({ success: true, username: cleanUser });
+});
+
+// Iniciar sesión
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Completa todos los campos' });
+    }
+
+    const cleanUser = username.toLowerCase().trim();
+
+    if (!users[cleanUser] || users[cleanUser] !== password) {
+        return res.status(400).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+
+    res.json({ success: true, username: cleanUser });
+});
+
+// ==========================================
+// RUTAS DE MULTIMEDIA Y CONTENIDO
+// ==========================================
+
+// Subir archivo local
 app.post('/api/upload', upload.single('audio'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se subió archivo' });
     
@@ -34,7 +78,7 @@ app.post('/api/upload', upload.single('audio'), (req, res) => {
     res.json(newTrack);
 });
 
-// NUEVA RUTA: Subir vía URL / YouTube
+// Subir vía URL / YouTube
 app.post('/api/upload-url', (req, res) => {
     const { title, artist, url } = req.body;
     if (!url) return res.status(400).json({ error: 'URL requerida' });
@@ -64,6 +108,7 @@ app.post('/api/tracks/:id/comment', (req, res) => {
     
     const { user, text } = req.body;
     const commentObj = { user, text, date: new Date().toLocaleTimeString() };
+    if (!track.comments) track.comments = [];
     track.comments.push(commentObj);
     res.json(commentObj);
 });
