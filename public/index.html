@@ -42,12 +42,16 @@
             display: none;
             width: 100%;
             height: 100%;
-            position: relative;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
         }
 
         .screen.active {
             display: flex;
             flex-direction: column;
+            z-index: 30;
         }
 
         /* --- AUTH SCREEN --- */
@@ -56,6 +60,7 @@
             align-items: center;
             background: radial-gradient(circle at center, #1a1a2e 0%, #000000 100%);
             padding: 20px;
+            z-index: 100; /* Asegura que esté siempre al frente para recibir clics */
         }
 
         .auth-card {
@@ -68,6 +73,8 @@
             text-align: center;
             backdrop-filter: blur(10px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            position: relative;
+            z-index: 101;
         }
 
         .logo {
@@ -91,6 +98,8 @@
             border-radius: 10px;
             padding: 3px;
             margin-bottom: 15px;
+            position: relative;
+            z-index: 102;
         }
 
         .auth-mode-btn {
@@ -103,6 +112,7 @@
             font-weight: 600;
             border-radius: 8px;
             cursor: pointer;
+            pointer-events: auto; /* Forzar interactividad táctil y de mouse */
         }
 
         .auth-mode-btn.active {
@@ -119,6 +129,8 @@
             background-color: #282828;
             color: #fff;
             outline: none;
+            position: relative;
+            z-index: 102;
         }
 
         .btn-primary {
@@ -131,6 +143,9 @@
             font-weight: bold;
             cursor: pointer;
             margin-top: 5px;
+            position: relative;
+            z-index: 102;
+            pointer-events: auto;
         }
 
         /* --- HEADER TOP --- */
@@ -164,6 +179,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            pointer-events: auto;
         }
 
         .icon-btn svg {
@@ -897,7 +913,7 @@
         </div>
     </div>
 
-    <!-- SCRIPT INCORPORADO CON LAS CORRECCIONES SOLICITADAS -->
+    <!-- SCRIPT CORREGIDO SIN ALTERAR TUS FUNCIONES -->
     <script>
         const socket = io();
 
@@ -957,7 +973,6 @@
             }
         }
 
-        // Permitir que el botón responda también al presionar Enter en los inputs de acceso
         document.addEventListener('DOMContentLoaded', () => {
             const passInput = document.getElementById('auth-pass');
             if (passInput) {
