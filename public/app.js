@@ -1,22 +1,23 @@
-const socket = io();
 let currentUser = null;
-let isPCMode = false;
-let currentUploadType = 'file';
-let tracksData = [];
-let playlistsData = {};
-let likedTracks = new Set();
-let currentActiveTrackForComments = null;
+let socket = io();
+let activePlaylistId = null;
+let currentChatFriend = null;
 
-const audioElement = document.getElementById('audio-element');
+// FORMATEADOR DE NÚMEROS (12 -> 12, 1200 -> 1.2k, 1000000 -> 1M)
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+    return num.toString();
+}
 
-// LOGIN Y REGISTRO
+// AUTENTICACIÓN
 async function handleAuth(type) {
-    const username = document.getElementById('username').value.trim().toLowerCase();
-    const password = document.getElementById('password').value.trim();
-    const errorMsg = document.getElementById('auth-error');
+    const username = document.getElementById('auth-user').value;
+    const password = document.getElementById('auth-pass').value;
+    const errorEl = document.getElementById('auth-error');
 
     if (!username || !password) {
-        errorMsg.innerText = "Ingresa usuario y contraseña";
+        errorEl.innerText = "Completa todos los campos";
         return;
     }
 
@@ -26,251 +27,383 @@ async function handleAuth(type) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
-
         const data = await res.json();
-        if (!res.ok) {
-            errorMsg.innerText = data.error || "Error al autenticar";
-            return;
+
+        if (res.ok) {
+            currentUser = data.username;
+            document.getElementById('auth-screen').classList.remove('active');
+            document.getElementById('app-screen').classList.add('active');
+            document.getElementById('profile-username').innerText = `@${currentUser}`;
+            if(data.avatar) document.getElementById('profile-avatar-img').src = data.avatar;
+
+            socket.emit('join_chat', { username: currentUser });
+            loadPlaylists();
+            loadFeed();
+        } else {
+            errorEl.innerText = data.error || 'Error en la solicitud';
         }
-
-        currentUser = data.username;
-        document.getElementById('profile-username').innerText = `@${currentUser}`;
-        document.getElementById('profile-initial').innerText = currentUser.charAt(0).toUpperCase();
-
-        document.getElementById('auth-screen').classList.remove('active');
-        document.getElementById('app-screen').classList.add('active');
-
-        socket.emit('join_room', { username: currentUser });
-        loadFeed();
-
-    } catch (e) {
-        errorMsg.innerText = "Error de conexión con el servidor";
+    } catch (err) {
+        errorEl.innerText = "Error de conexión con el servidor";
     }
 }
 
-// NAVEGACIÓN VISTAS
-function navTo(viewName, btn) {
-    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-
-    document.getElementById(`view-${viewName}`).classList.add('active');
-    if (btn) btn.classList.add('active');
-
-    if (viewName === 'profile') renderProfileGrid('playlists');
+function logout() {
+    location.reload();
 }
 
-// CARGAR FEED DE TRACKS
-async function loadFeed() {
-    try {
-        const res = await fetch('/api/tracks');
-        tracksData = await res.json();
-        const container = document.getElementById('feed-container');
+// NAVEGACIÓN DE PESTAÑAS
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    
+    const titles = {
+        playlists: 'PLAYLISTS',
+        feed: 'PARA TI',
+        myposts: 'MIS POSTS',
+        search: 'BUSCADOR',
+        inbox: 'INBOX',
+        profile: 'MI PERFIL'
+    };
+    document.getElementById('top-title').innerText = titles[tabId] || 'SOUNDPULSE';
+    document.getElementById('side-menu').classList.remove('open');
 
-        if (tracksData.length === 0) {
-            document.getElementById('empty-feed').style.display = 'flex';
-            return;
-        }
-
-        document.getElementById('empty-feed').style.display = 'none';
-        container.innerHTML = '';
-
-        tracksData.forEach(track => {
-            const item = document.createElement('div');
-            item.className = 'feed-item';
-
-            item.innerHTML = `
-                <div class="feed-overlay">
-                    <div class="feed-user">@${track.artist}</div>
-                    <div class="feed-title">${track.title}</div>
-                </div>
-                <div class="feed-actions-right">
-                    <button class="action-btn ${likedTracks.has(track.id) ? 'liked' : ''}" onclick="likeTrack('${track.id}', this)">
-                        <div class="action-icon">♥</div>
-                        <span>${track.likes || 0}</span>
-                    </button>
-                    <button class="action-btn" onclick="openCommentsModal('${track.id}')">
-                        <div class="action-icon">💬</div>
-                        <span>${(track.comments || []).length}</span>
-                    </button>
-                    <button class="action-btn" onclick="openPlaylistModal('${track.id}')">
-                        <div class="action-icon">+</div>
-                        <span>Playlist</span>
-                    </button>
-                    <button class="action-btn" onclick="triggerPlay('${track.url}', '${track.title}', '${track.artist}')">
-                        <div class="action-icon">▶</div>
-                        <span>Reproducir</span>
-                    </button>
-                </div>
-            `;
-            container.appendChild(item);
-        });
-    } catch (e) {
-        console.error("Error al cargar feed", e);
-    }
+    if (tabId === 'playlists') loadPlaylists();
+    if (tabId === 'feed') loadFeed();
+    if (tabId === 'myposts') loadMyPosts();
+    if (tabId === 'inbox') loadInbox();
 }
 
-// BÚSQUEDA GLOBAL (HEADER)
-function handleGlobalSearch(e) {
-    const query = e.target.value.toLowerCase().trim();
-    if (e.key === 'Enter' && query) {
-        navTo('discover');
-        const results = document.getElementById('search-results');
-        results.innerHTML = `<p style="padding:10px;">Buscando resultados para <strong>"${query}"</strong>...</p>`;
-    }
+function toggleSideMenu() {
+    document.getElementById('side-menu').classList.toggle('open');
 }
 
-// ANIMACIÓN Y SISTEMA DE LIKE ÚNICO
-function likeTrack(trackId, btn) {
-    if (likedTracks.has(trackId)) return;
-    likedTracks.add(trackId);
+// ==========================================
+// SECCIÓN PLAYLISTS Y REPRODUCCIÓN
+// ==========================================
 
-    btn.classList.add('liked');
-    const span = btn.querySelector('span');
-    span.innerText = parseInt(span.innerText) + 1;
-}
+async function loadPlaylists() {
+    const res = await fetch(`/api/playlists/${currentUser}`);
+    const data = await res.json();
+    const container = document.getElementById('playlists-list');
+    container.innerHTML = '';
 
-// PUBLICAR ARCHIVO / YOUTUBE
-function openUploadModal() { document.getElementById('upload-modal').style.display = 'flex'; }
-function closeUploadModal() { document.getElementById('upload-modal').style.display = 'none'; }
-
-function switchUploadType(type) {
-    currentUploadType = type;
-    document.getElementById('tab-btn-file').classList.toggle('active', type === 'file');
-    document.getElementById('tab-btn-url').classList.toggle('active', type === 'url');
-    document.getElementById('input-file-group').style.display = type === 'file' ? 'block' : 'none';
-    document.getElementById('input-url-group').style.display = type === 'url' ? 'block' : 'none';
-}
-
-async function handlePublish(e) {
-    e.preventDefault();
-    const title = document.getElementById('up-title').value;
-    const artist = document.getElementById('up-artist').value;
-
-    if (currentUploadType === 'file') {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('artist', artist);
-        formData.append('audio', document.getElementById('up-file').files[0]);
-
-        await fetch('/api/upload', { method: 'POST', body: formData });
-    } else {
-        const url = document.getElementById('up-url').value;
-        await fetch('/api/upload-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, artist, url })
-        });
-    }
-
-    closeUploadModal();
-    loadFeed();
-}
-
-// COMENTARIOS
-function openCommentsModal(trackId) {
-    currentActiveTrackForComments = trackId;
-    document.getElementById('comments-modal').style.display = 'flex';
-    renderComments();
-}
-
-function closeCommentsModal() {
-    document.getElementById('comments-modal').style.display = 'none';
-}
-
-function renderComments() {
-    const list = document.getElementById('comments-list');
-    const track = tracksData.find(t => t.id === currentActiveTrackForComments);
-    list.innerHTML = '';
-
-    if (!track || !track.comments || track.comments.length === 0) {
-        list.innerHTML = '<p style="color:#666; text-align:center;">Sé el primero en comentar.</p>';
+    if (data.length === 0) {
+        container.innerHTML = '<p style="color:#888; text-align:center; margin-top:20px;">No tienes playlists. ¡Crea una con el botón 🎵+ arriba!</p>';
         return;
     }
 
-    track.comments.forEach(c => {
+    data.forEach(pl => {
         const div = document.createElement('div');
-        div.style.marginBottom = '8px';
-        div.innerHTML = `<strong style="color:var(--red-main)">@${c.user}:</strong> <span>${c.text}</span>`;
+        div.className = 'playlist-card';
+        div.innerHTML = `
+            <div class="playlist-cover-square" style="background-color: ${pl.coverColor}">${pl.name.substring(0, 2).toUpperCase()}</div>
+            <div class="playlist-info">
+                <h4>${pl.name}</h4>
+                <p>by ${currentUser} • ${pl.songs.length}/20 canciones</p>
+            </div>
+        `;
+        div.onclick = () => openPlaylistDetail(pl);
+        container.appendChild(div);
+    });
+}
+
+function openPlaylistDetail(pl) {
+    activePlaylistId = pl.id;
+    const container = document.getElementById('playlists-list');
+    
+    let html = `
+        <button class="btn-secondary" onclick="loadPlaylists()">← Volver a Playlists</button>
+        <div style="margin: 15px 0; display:flex; align-items:center;">
+            <div class="playlist-cover-square" style="background-color:${pl.coverColor}">${pl.name.substring(0, 2).toUpperCase()}</div>
+            <div>
+                <h3>${pl.name}</h3>
+                <p style="color:#aaa;">${pl.songs.length} / 20 canciones guardadas</p>
+            </div>
+        </div>
+        <button class="btn-primary" onclick="openAddSongModal()" style="margin-bottom:15px;">+ Añadir Canción (URL YouTube/MP3)</button>
+    `;
+
+    pl.songs.forEach(song => {
+        html += `
+            <div class="song-list-item" onclick="playSong('${song.title}', '${song.artist}', '${song.url}', '${song.youtubeId}', '${song.coverColor}')">
+                <div class="playlist-cover-square" style="background-color:${song.coverColor}; width:40px; height:40px; font-size:0.8em; margin-right:10px;">♪</div>
+                <div>
+                    <strong>${song.title}</strong>
+                    <div style="font-size:0.8em; color:#aaa;">${song.artist}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function playSong(title, artist, url, youtubeId, coverColor) {
+    document.getElementById('player-title').innerText = title;
+    document.getElementById('player-artist').innerText = artist;
+    document.getElementById('player-cover').style.backgroundColor = coverColor || '#ff2a5f';
+
+    const engine = document.getElementById('media-engine');
+    if (youtubeId) {
+        engine.innerHTML = `<iframe width="100" height="100" src="https://www.youtube.com/embed/${youtubeId}?autoplay=1" allow="autoplay"></iframe>`;
+    } else {
+        engine.innerHTML = `<audio src="${url}" autoplay controls></audio>`;
+    }
+}
+
+// ==========================================
+// FEED Y MIS POSTS
+// ==========================================
+
+async function loadFeed() {
+    const res = await fetch('/api/posts');
+    const posts = await res.json();
+    renderPosts(posts, 'feed-container');
+}
+
+async function loadMyPosts() {
+    const res = await fetch(`/api/posts/user/${currentUser}`);
+    const posts = await res.json();
+    renderPosts(posts, 'myposts-container');
+}
+
+function renderPosts(posts, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    posts.forEach(p => {
+        const countText = formatNumber(p.comments ? p.comments.length : 0);
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.innerHTML = `
+            <div class="post-header">
+                <img src="${p.avatar || '/uploads/default-avatar.png'}" class="post-avatar">
+                <strong>@${p.username}</strong>
+            </div>
+            <h4>${p.title}</h4>
+            <p style="font-size:0.9em; color:#ccc; margin-bottom:10px;">${p.description}</p>
+            ${p.isYoutube ? `<iframe width="100%" height="200" src="https://www.youtube.com/embed/${p.youtubeId}"></iframe>` : `<video src="${p.mediaUrl}" controls width="100%"></video>`}
+            <div class="comments-count" id="comment-count-${p.id}">💬 ${countText} comentarios</div>
+            <div style="margin-top:10px; display:flex;">
+                <input type="text" id="input-comment-${p.id}" placeholder="Escribe un comentario..." style="padding:6px; flex:1; background:#222; border:1px solid #333; color:#fff; border-radius:4px;">
+                <button onclick="sendComment('${p.id}')" style="padding:6px 12px; background:#ff2a5f; border:none; color:#fff; border-radius:4px; margin-left:5px;">Publicar</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+async function sendComment(postId) {
+    const input = document.getElementById(`input-comment-${postId}`);
+    const text = input.value.trim();
+    if (!text) return;
+
+    const res = await fetch(`/api/posts/${postId}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, text })
+    });
+    const data = await res.json();
+    if (res.ok) {
+        document.getElementById(`comment-count-${postId}`).innerText = `💬 ${formatNumber(data.commentsCount)} comentarios`;
+        input.value = '';
+    }
+}
+
+// ==========================================
+// BUSCADOR Y SEGUIMIENTO MUTUO
+// ==========================================
+
+async function searchUsers() {
+    const query = document.getElementById('search-input').value;
+    if (!query) {
+        document.getElementById('search-results').innerHTML = '';
+        return;
+    }
+
+    const res = await fetch(`/api/users/search?q=${query}`);
+    const usersList = await res.json();
+    const container = document.getElementById('search-results');
+    container.innerHTML = '';
+
+    usersList.forEach(u => {
+        const item = document.createElement('div');
+        item.style = "display:flex; align-items:center; justify-content:space-between; padding:10px; background:#181818; margin-bottom:5px; border-radius:6px;";
+        item.innerHTML = `
+            <div style="display:flex; align-items:center;">
+                <img src="${u.avatar}" style="width:40px; height:40px; border-radius:50%; margin-right:10px; object-fit:cover;">
+                <strong>@${u.username} ${u.username === currentUser ? '(Tú)' : ''}</strong>
+            </div>
+            ${u.username !== currentUser ? `<button onclick="followUser('${u.username}')" class="btn-primary" style="width:auto; padding:6px 12px;">Seguir</button>` : ''}
+        `;
+        container.appendChild(item);
+    });
+}
+
+async function followUser(targetUser) {
+    const res = await fetch('/api/user/follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentUser, targetUser })
+    });
+    const data = await res.json();
+    alert(data.isFollowing ? `Ahora sigues a @${targetUser}` : `Dejaste de seguir a @${targetUser}`);
+}
+
+// ==========================================
+// INBOX Y CHAT
+// ==========================================
+
+async function loadInbox() {
+    const res = await fetch(`/api/inbox/friends/${currentUser}`);
+    const friends = await res.json();
+    const list = document.getElementById('friends-list');
+    list.innerHTML = '';
+
+    if (friends.length === 0) {
+        list.innerHTML = '<p style="color:#888;">Para chatear, ambos usuarios deben seguirse mutuamente.</p>';
+        return;
+    }
+
+    friends.forEach(f => {
+        const div = document.createElement('div');
+        div.style = "display:flex; align-items:center; padding:10px; background:#181818; margin-bottom:8px; border-radius:6px; cursor:pointer;";
+        div.innerHTML = `
+            <img src="${f.avatar}" style="width:35px; height:35px; border-radius:50%; margin-right:10px; object-fit:cover;">
+            <strong>@${f.username}</strong>
+        `;
+        div.onclick = () => openChat(f.username);
         list.appendChild(div);
     });
 }
 
-async function postComment() {
-    const input = document.getElementById('comment-input');
+function openChat(username) {
+    currentChatFriend = username;
+    document.getElementById('chat-with-user').innerText = `@${username}`;
+    document.getElementById('chat-box').classList.remove('hidden');
+}
+
+function closeChat() {
+    document.getElementById('chat-box').classList.add('hidden');
+    currentChatFriend = null;
+}
+
+function sendPrivateMsg() {
+    const input = document.getElementById('chat-msg-input');
     const text = input.value.trim();
-    if (!text || !currentActiveTrackForComments) return;
+    if (!text || !currentChatFriend) return;
 
-    await fetch(`/api/tracks/${currentActiveTrackForComments}/comment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: currentUser, text })
-    });
-
+    socket.emit('send_private_msg', { from: currentUser, to: currentChatFriend, text });
+    appendChatMsg(currentUser, text);
     input.value = '';
-    const track = tracksData.find(t => t.id === currentActiveTrackForComments);
-    if (track) {
-        if (!track.comments) track.comments = [];
-        track.comments.push({ user: currentUser, text });
-    }
-    renderComments();
 }
 
-// PLAYLISTS EN PERFIL
-function promptCreatePlaylist() {
-    const name = prompt("Escribe el nombre de tu nueva Playlist:");
-    if (name && name.trim()) {
-        playlistsData[name.trim()] = [];
-        renderProfileGrid('playlists');
-    }
-}
-
-function renderProfileGrid(type) {
-    const grid = document.getElementById('profile-grid');
-    grid.innerHTML = '';
-
-    if (type === 'playlists') {
-        const keys = Object.keys(playlistsData);
-        if (keys.length === 0) {
-            grid.innerHTML = '<p style="grid-column: span 3; text-align:center; padding:20px; color:#666;">Sin Playlists creadas</p>';
-            return;
-        }
-        keys.forEach(pl => {
-            const card = document.createElement('div');
-            card.className = 'grid-card';
-            card.innerText = `📁 ${pl}`;
-            grid.appendChild(card);
-        });
-    }
-}
-
-// CONTROLES PC Y SOCKETS
-function togglePCMode() {
-    isPCMode = !isPCMode;
-    const btn = document.getElementById('pc-mode-btn');
-    btn.classList.toggle('active', isPCMode);
-    btn.innerText = isPCMode ? "PC Mode: ON" : "PC Mode: OFF";
-}
-
-function triggerPlay(trackUrl, title, artist) {
-    socket.emit('remote_play_track', { username: currentUser, trackUrl, title, artist });
-}
-
-socket.on('pc_play_track', (data) => {
-    document.getElementById('player-title').innerText = data.title;
-    document.getElementById('player-artist').innerText = data.artist;
-
-    if (isPCMode) {
-        audioElement.src = data.trackUrl;
-        audioElement.play();
+socket.on('receive_private_msg', (data) => {
+    if (data.from === currentChatFriend) {
+        appendChatMsg(data.from, data.text);
     }
 });
 
-function controlMedia(action) {
-    if (action === 'pause') {
-        if (audioElement.paused) audioElement.play();
-        else audioElement.pause();
-    } else if (action === 'stop') {
-        audioElement.pause();
-        audioElement.currentTime = 0;
+function appendChatMsg(sender, text) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.style = `margin: 5px 0; text-align: ${sender === currentUser ? 'right' : 'left'};`;
+    div.innerHTML = `<span style="background:${sender === currentUser ? '#ff2a5f' : '#333'}; padding:6px 10px; border-radius:10px; display:inline-block;">${text}</span>`;
+    container.appendChild(div);
+}
+
+// ==========================================
+// FOTO DE PERFIL
+// ==========================================
+
+function triggerAvatarUpload() {
+    document.getElementById('avatar-file-input').click();
+}
+
+async function uploadAvatar(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+    formData.append('username', currentUser);
+
+    const res = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+        document.getElementById('profile-avatar-img').src = data.avatar;
+    }
+}
+
+// ==========================================
+// MODALES Y ACCIONES
+// ==========================================
+
+function openCreatePlaylistModal() { document.getElementById('modal-playlist').style.display = 'flex'; }
+function openAddSongModal() { document.getElementById('modal-add-song').style.display = 'flex'; }
+function openUploadModal() { document.getElementById('modal-upload').style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+async function createPlaylist() {
+    const name = document.getElementById('pl-name-input').value;
+    const coverColor = document.getElementById('pl-color-input').value;
+
+    const res = await fetch('/api/playlists/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, name, coverColor })
+    });
+
+    if (res.ok) {
+        closeModal('modal-playlist');
+        loadPlaylists();
+    }
+}
+
+async function addSongToPlaylist() {
+    const title = document.getElementById('song-title-input').value;
+    const artist = document.getElementById('song-artist-input').value;
+    const url = document.getElementById('song-url-input').value;
+    const coverColor = document.getElementById('song-color-input').value;
+
+    const res = await fetch('/api/playlists/add-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, playlistId: activePlaylistId, title, artist, url, coverColor })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+        closeModal('modal-add-song');
+        openPlaylistDetail(data.playlist);
+    } else {
+        alert(data.error);
+    }
+}
+
+async function submitPost() {
+    const title = document.getElementById('post-title-input').value;
+    const description = document.getElementById('post-desc-input').value;
+    const youtubeUrl = document.getElementById('post-yt-input').value;
+    const file = document.getElementById('post-file-input').files[0];
+
+    const formData = new FormData();
+    formData.append('username', currentUser);
+    formData.append('title', title);
+    formData.append('description', description);
+    if (youtubeUrl) formData.append('youtubeUrl', youtubeUrl);
+    if (file) formData.append('media', file);
+
+    const res = await fetch('/api/posts/create', {
+        method: 'POST',
+        body: formData
+    });
+
+    if (res.ok) {
+        closeModal('modal-upload');
+        loadMyPosts();
     }
 }
