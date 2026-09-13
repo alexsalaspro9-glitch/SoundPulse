@@ -26,9 +26,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // BASE DE DATOS EN MEMORIA
-let users = {};       // { username: { password, avatar, follows: [] } }
+// Se preserva/inicializa la cuenta principal para que jamás se borre
+let users = {
+    'admin': { password: '123', avatar: 'https://via.placeholder.com/150', follows: [] }
+};
 let feedPosts = [];   // Publicaciones para el feed "Para Ti"
-let playlists = {};   // { username: [ { id, name, coverColor, songs: [] } ] }
+let playlists = { 'admin': [] };   // { username: [ { id, name, coverColor, songs: [] } ] }
 let messages = [];    // { from, to, text, date }
 
 // Helper para ID de YouTube
@@ -334,6 +337,27 @@ io.on('connection', (socket) => {
         else socket.emit('render-feed', feedPosts);
     });
 
+    socket.on('toggle-like', (data, cb) => {
+        const { postId, username } = data;
+        const post = feedPosts.find(p => p.id === postId);
+        if (!post) return cb && cb({ success: false });
+
+        if (!post.likedBy) post.likedBy = [];
+        const u = (username || '').toLowerCase().trim();
+        const index = post.likedBy.indexOf(u);
+
+        if (index > -1) {
+            post.likedBy.splice(index, 1);
+            post.likes = Math.max(0, (post.likes || 1) - 1);
+        } else {
+            post.likedBy.push(u);
+            post.likes = (post.likes || 0) + 1;
+        }
+
+        const isLiked = post.likedBy.includes(u);
+        if (typeof cb === 'function') cb({ success: true, likes: post.likes, isLiked });
+    });
+
     socket.on('get-playlists', () => {
         if (socketUser) {
             socket.emit('render-playlists', playlists[socketUser] || []);
@@ -355,6 +379,7 @@ io.on('connection', (socket) => {
         if (!users[u]) return cb && cb({ error: 'Usuario no encontrado' });
 
         const userPosts = feedPosts.filter(p => p.username === u);
+        const likedPosts = feedPosts.filter(p => p.likedBy && p.likedBy.includes(u));
         const followersCount = Object.keys(users).filter(k => users[k].follows.includes(u)).length;
 
         const profileData = {
@@ -363,7 +388,8 @@ io.on('connection', (socket) => {
             followingCount: users[u].follows.length,
             followersCount: followersCount,
             likesCount: userPosts.reduce((acc, p) => acc + (p.likes || 0), 0),
-            posts: userPosts
+            posts: userPosts,
+            likedPosts: likedPosts
         };
 
         if (typeof cb === 'function') cb(profileData);

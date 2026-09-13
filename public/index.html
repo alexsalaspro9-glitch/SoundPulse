@@ -612,11 +612,37 @@
             color: #888;
         }
 
+        /* SECCIONES PERFIL: MIS VIDEOS Y LIKES */
+        .profile-subtabs {
+            display: flex;
+            justify-content: space-around;
+            border-bottom: 1px solid #333;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .profile-subtab-btn {
+            background: none;
+            border: none;
+            color: #888;
+            padding: 10px 0;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            width: 50%;
+            border-bottom: 2px solid transparent;
+            transition: 0.3s;
+        }
+
+        .profile-subtab-btn.active {
+            color: #fff;
+            border-bottom: 2px solid #ff007f;
+        }
+
         .profile-posts-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 4px;
-            margin-top: 15px;
         }
 
         .profile-post-item {
@@ -860,9 +886,9 @@
                                 <div class="post-audio-track">🎵 Sonido original - @artista_demo</div>
                             </div>
                             <div class="post-actions-overlay">
-                                <button class="action-btn" onclick="this.classList.toggle('liked')">
+                                <button class="action-btn" onclick="toggleLikePost('demo-post-1', this)">
                                     <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                    <span>1.2k</span>
+                                    <span class="like-counter">1.2k</span>
                                 </button>
                                 <button class="action-btn" onclick="toggleComments('demo-post-1')">
                                     <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
@@ -929,9 +955,17 @@
                                 <div class="stat-label">Me Gusta</div>
                             </div>
                         </div>
+                        
                         <div id="profile-actions" style="margin-bottom: 15px;"></div>
+
+                        <!-- SUBTABS DEBAJO DE "CAMBIAR FOTO / SEGUIR" -->
+                        <div class="profile-subtabs">
+                            <button id="subtab-btn-myposts" class="profile-subtab-btn active" onclick="switchProfileSubTab('myposts')">Mis videos</button>
+                            <button id="subtab-btn-likes" class="profile-subtab-btn" onclick="switchProfileSubTab('likes')">Likes</button>
+                        </div>
+
                         <div class="profile-posts-grid" id="user-posts-grid">
-                            <!-- Posts grid -->
+                            <!-- Posts o Likes grid -->
                         </div>
                     </div>
                 </div>
@@ -1053,6 +1087,8 @@
         let currentAuthMode = 'login';
         let currentTab = 'feed';
         let activeCommentsPostId = null;
+        let currentProfileData = null;
+        let currentProfileSubTab = 'myposts';
 
         function setAuthMode(mode) {
             currentAuthMode = mode;
@@ -1199,6 +1235,8 @@
                         </div>`;
                 }
 
+                const isLiked = currentUser && post.likedBy && post.likedBy.includes(currentUser.username.toLowerCase());
+
                 postEl.innerHTML = `
                     ${mediaHTML}
                     <div class="post-info-overlay">
@@ -1207,9 +1245,9 @@
                         <div class="post-audio-track">🎵 ${post.description || 'Sonido original'}</div>
                     </div>
                     <div class="post-actions-overlay">
-                        <button class="action-btn" onclick="this.classList.toggle('liked')">
+                        <button class="action-btn ${isLiked ? 'liked' : ''}" onclick="toggleLikePost('${post.id}', this)">
                             <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                            <span>${post.likes || 0}</span>
+                            <span class="like-counter">${post.likes || 0}</span>
                         </button>
                         <button class="action-btn" onclick="toggleComments('${post.id}')">
                             <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
@@ -1218,6 +1256,17 @@
                     </div>
                 `;
                 container.appendChild(postEl);
+            });
+        }
+
+        function toggleLikePost(postId, btn) {
+            if (!currentUser) return;
+            socket.emit('toggle-like', { postId, username: currentUser.username }, (res) => {
+                if (res && res.success) {
+                    btn.classList.toggle('liked', res.isLiked);
+                    const counter = btn.querySelector('.like-counter');
+                    if (counter) counter.innerText = res.likes;
+                }
             });
         }
 
@@ -1413,6 +1462,7 @@
         function loadProfileData(username) {
             socket.emit('get-user-profile', { username }, (data) => {
                 if (!data || data.error) return;
+                currentProfileData = data;
 
                 const profileUser = document.getElementById('profile-username');
                 const followers = document.getElementById('stat-followers');
@@ -1435,20 +1485,38 @@
                     }
                 }
 
-                const grid = document.getElementById('user-posts-grid');
-                if (grid) {
-                    grid.innerHTML = '';
-                    (data.posts || []).forEach(post => {
-                        const item = document.createElement('div');
-                        item.className = 'profile-post-item';
-                        if (post.type === 'video') {
-                            item.innerHTML = `<video src="${post.mediaUrl}"></video>`;
-                        } else {
-                            item.innerHTML = `<img src="${post.coverUrl || 'https://via.placeholder.com/150'}">`;
-                        }
-                        grid.appendChild(item);
-                    });
+                renderProfileGrid();
+            });
+        }
+
+        function switchProfileSubTab(type) {
+            currentProfileSubTab = type;
+            document.getElementById('subtab-btn-myposts')?.classList.toggle('active', type === 'myposts');
+            document.getElementById('subtab-btn-likes')?.classList.toggle('active', type === 'likes');
+            renderProfileGrid();
+        }
+
+        function renderProfileGrid() {
+            const grid = document.getElementById('user-posts-grid');
+            if (!grid || !currentProfileData) return;
+            grid.innerHTML = '';
+
+            const list = currentProfileSubTab === 'likes' ? (currentProfileData.likedPosts || []) : (currentProfileData.posts || []);
+
+            if (list.length === 0) {
+                grid.innerHTML = `<div style="grid-column: span 3; text-align: center; color: #777; padding: 20px;">Sin videos que mostrar</div>`;
+                return;
+            }
+
+            list.forEach(post => {
+                const item = document.createElement('div');
+                item.className = 'profile-post-item';
+                if (post.type === 'video') {
+                    item.innerHTML = `<video src="${post.mediaUrl}"></video>`;
+                } else {
+                    item.innerHTML = `<img src="${post.coverUrl || 'https://via.placeholder.com/150'}">`;
                 }
+                grid.appendChild(item);
             });
         }
 
