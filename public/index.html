@@ -692,14 +692,14 @@
             <p class="subtitle">Música y Videos Cortos</p>
             
             <div class="auth-mode-selector">
-                <button id="btn-mode-login" class="auth-mode-btn active" onclick="setAuthMode('login')">Iniciar Sesión</button>
-                <button id="btn-mode-register" class="auth-mode-btn" onclick="setAuthMode('register')">Registrarse</button>
+                <button id="btn-mode-login" class="auth-mode-btn active" type="button" onclick="setAuthMode('login')">Iniciar Sesión</button>
+                <button id="btn-mode-register" class="auth-mode-btn" type="button" onclick="setAuthMode('register')">Registrarse</button>
             </div>
 
             <input type="text" id="auth-user" placeholder="Nombre de usuario" autocomplete="off">
             <input type="password" id="auth-pass" placeholder="Contraseña">
             
-            <button class="btn-primary" id="auth-submit-btn" onclick="handleAuth()">Entrar</button>
+            <button class="btn-primary" id="auth-submit-btn" type="button" onclick="handleAuth()">Entrar</button>
             <p id="auth-error" style="color: var(--accent); font-size: 0.75rem; margin-top: 10px;"></p>
         </div>
     </div>
@@ -956,6 +956,18 @@
                 });
             }
         }
+
+        // Permitir que el botón responda también al presionar Enter en los inputs de acceso
+        document.addEventListener('DOMContentLoaded', () => {
+            const passInput = document.getElementById('auth-pass');
+            if (passInput) {
+                passInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        handleAuth();
+                    }
+                });
+            }
+        });
 
         function initApp() {
             document.getElementById('auth-screen').classList.remove('active');
