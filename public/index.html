@@ -193,7 +193,7 @@
             flex: 1;
             position: relative;
             overflow: hidden;
-            margin-bottom: 60px; /* Space for bottom nav */
+            margin-bottom: 110px; /* Space for player & bottom nav */
         }
 
         .tab-content {
@@ -849,25 +849,26 @@
                 
                 <!-- TAB 1: TIKTOK FEED -->
                 <div id="tab-feed" class="tab-content active">
-                    <!-- Sample Feed Post Dynamic Container -->
-                    <div class="feed-post" id="feed-container">
-                        <div class="audio-wave-bg">
-                            <img src="https://via.placeholder.com/180" class="disc-spinner" alt="Cover">
-                        </div>
-                        <div class="post-info-overlay">
-                            <div class="post-username">@artista_demo</div>
-                            <div class="post-title">Canción de Ejemplo - Demo Beat</div>
-                            <div class="post-audio-track">🎵 Sonido original - @artista_demo</div>
-                        </div>
-                        <div class="post-actions-overlay">
-                            <button class="action-btn" onclick="this.classList.toggle('liked')">
-                                <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                <span>1.2k</span>
-                            </button>
-                            <button class="action-btn" onclick="toggleComments('demo-post-1')">
-                                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
-                                <span>84</span>
-                            </button>
+                    <div id="feed-container" style="height: 100%; overflow-y: scroll; snap-type: y mandatory;">
+                        <div class="feed-post">
+                            <div class="audio-wave-bg">
+                                <img src="https://via.placeholder.com/180" class="disc-spinner" alt="Cover">
+                            </div>
+                            <div class="post-info-overlay">
+                                <div class="post-username">@artista_demo</div>
+                                <div class="post-title">Canción de Ejemplo - Demo Beat</div>
+                                <div class="post-audio-track">🎵 Sonido original - @artista_demo</div>
+                            </div>
+                            <div class="post-actions-overlay">
+                                <button class="action-btn" onclick="this.classList.toggle('liked')">
+                                    <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                    <span>1.2k</span>
+                                </button>
+                                <button class="action-btn" onclick="toggleComments('demo-post-1')">
+                                    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                                    <span>84</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -923,8 +924,13 @@
                                 <div class="stat-num" id="stat-following">0</div>
                                 <div class="stat-label">Siguiendo</div>
                             </div>
+                            <div>
+                                <div class="stat-num" id="stat-likes">0</div>
+                                <div class="stat-label">Me Gusta</div>
+                            </div>
                         </div>
-                        <div class="profile-posts-grid" id="user-profile-posts">
+                        <div id="profile-actions" style="margin-bottom: 15px;"></div>
+                        <div class="profile-posts-grid" id="user-posts-grid">
                             <!-- Posts grid -->
                         </div>
                     </div>
@@ -1004,6 +1010,10 @@
                     <input type="text" id="post-title-input" placeholder="Nombre de tu canción o clip">
                 </div>
                 <div class="modal-input-group">
+                    <label>Descripción</label>
+                    <input type="text" id="post-desc-input" placeholder="Añade una pequeña descripción">
+                </div>
+                <div class="modal-input-group">
                     <label>Archivo Multimedia (Audio MP3 / Video MP4)</label>
                     <input type="file" id="post-file-input" accept="audio/*,video/*" onchange="checkFileType(event)">
                 </div>
@@ -1076,11 +1086,9 @@
 
             if (errorText) errorText.innerText = 'Cargando...';
 
-            const eventName = currentAuthMode === 'register' ? 'register' : 'login';
-
             let ackReceived = false;
 
-            socket.emit(eventName, { username: userinput, password: passinput }, (response) => {
+            socket.emit('auth-request', { mode: currentAuthMode, username: userinput, password: passinput }, (response) => {
                 ackReceived = true;
                 if (response && response.success) {
                     currentUser = response.user;
@@ -1120,18 +1128,10 @@
             document.getElementById('app-screen')?.classList.add('active');
             
             if (currentUser) {
-                const profileUser = document.getElementById('profile-username');
-                const followers = document.getElementById('stat-followers');
-                const following = document.getElementById('stat-following');
-                const avatarImg = document.getElementById('profile-avatar-img');
-
-                if (profileUser) profileUser.innerText = `@${currentUser.username}`;
-                if (followers) followers.innerText = currentUser.followers ? currentUser.followers.length : 0;
-                if (following) following.innerText = currentUser.following ? currentUser.following.length : 0;
-                if (currentUser.avatar && avatarImg) avatarImg.src = currentUser.avatar;
+                loadProfileData(currentUser.username);
             }
 
-            socket.emit('get-feed');
+            loadFeed();
             socket.emit('get-playlists');
         }
 
@@ -1156,12 +1156,87 @@
             if (tabId === 'myposts') {
                 loadMyPosts();
             } else if (tabId === 'profile') {
-                loadUserProfilePosts();
+                if (currentUser) loadProfileData(currentUser.username);
+            } else if (tabId === 'feed') {
+                loadFeed();
             }
         }
 
         function toggleSideMenu() {
             document.getElementById('side-menu')?.classList.toggle('open');
+        }
+
+        function loadFeed() {
+            socket.emit('get-feed', {}, (posts) => {
+                renderFeed(posts || []);
+            });
+        }
+
+        function renderFeed(posts) {
+            const container = document.getElementById('feed-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (posts.length === 0) {
+                container.innerHTML = `<div class="feed-post"><div style="color:#aaa;">No hay publicaciones aún</div></div>`;
+                return;
+            }
+
+            posts.forEach(post => {
+                const postEl = document.createElement('div');
+                postEl.className = 'feed-post';
+
+                let mediaHTML = '';
+                if (post.type === 'video') {
+                    mediaHTML = `
+                        <div class="media-container">
+                            <video src="${post.mediaUrl}" loop onclick="playTrack('${post.mediaUrl}', '${post.title}', '${post.username}', '${post.coverUrl}')"></video>
+                        </div>`;
+                } else {
+                    mediaHTML = `
+                        <div class="audio-wave-bg" onclick="playTrack('${post.mediaUrl}', '${post.title}', '${post.username}', '${post.coverUrl}')">
+                            <img src="${post.coverUrl || 'https://via.placeholder.com/180'}" class="disc-spinner" alt="Cover">
+                        </div>`;
+                }
+
+                postEl.innerHTML = `
+                    ${mediaHTML}
+                    <div class="post-info-overlay">
+                        <div class="post-username" onclick="viewProfile('${post.username}')">@${post.username}</div>
+                        <div class="post-title">${post.title}</div>
+                        <div class="post-audio-track">🎵 ${post.description || 'Sonido original'}</div>
+                    </div>
+                    <div class="post-actions-overlay">
+                        <button class="action-btn" onclick="this.classList.toggle('liked')">
+                            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                            <span>${post.likes || 0}</span>
+                        </button>
+                        <button class="action-btn" onclick="toggleComments('${post.id}')">
+                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                            <span>${post.commentsCount || 0}</span>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(postEl);
+            });
+        }
+
+        function playTrack(url, title, artist, cover) {
+            const audio = document.getElementById('global-audio-player');
+            const titleEl = document.getElementById('global-player-title');
+            const artistEl = document.getElementById('global-player-artist');
+            const coverEl = document.getElementById('global-player-cover');
+
+            if (audio) {
+                audio.src = url;
+                audio.play();
+                if (titleEl) titleEl.innerText = title || 'Reproduciendo';
+                if (artistEl) artistEl.innerText = '@' + (artist || 'SoundPulse');
+                if (coverEl) coverEl.src = cover || 'https://via.placeholder.com/150';
+                
+                document.getElementById('play-icon').style.display = 'none';
+                document.getElementById('pause-icon').style.display = 'block';
+            }
         }
 
         function toggleComments(postId) {
@@ -1206,7 +1281,7 @@
             const playIcon = document.getElementById('play-icon');
             const pauseIcon = document.getElementById('pause-icon');
 
-            if (!audio) return;
+            if (!audio || !audio.src) return;
 
             if (audio.paused) {
                 audio.play();
@@ -1246,14 +1321,35 @@
 
         function submitPost() {
             const title = document.getElementById('post-title-input')?.value.trim();
+            const desc = document.getElementById('post-desc-input')?.value.trim();
             const fileInput = document.getElementById('post-file-input');
+            const coverInput = document.getElementById('post-cover-input');
 
             if (!title || !fileInput || fileInput.files.length === 0) {
                 alert('Por favor añade un título y un archivo multimedia.');
                 return;
             }
 
-            closeModal('modal-upload');
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('description', desc || '');
+            formData.append('username', currentUser ? currentUser.username : '');
+            formData.append('media', fileInput.files[0]);
+            if (coverInput && coverInput.files[0]) {
+                formData.append('cover', coverInput.files[0]);
+            }
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    closeModal('modal-upload');
+                    loadFeed();
+                } else {
+                    alert(data.error || 'Error al subir la publicación.');
+                }
+            });
         }
 
         function logout() {
@@ -1280,7 +1376,7 @@
                 const div = document.createElement('div');
                 div.className = 'user-search-result';
                 div.innerHTML = `
-                    <div class="user-result-info">
+                    <div class="user-result-info" onclick="viewProfile('${u.username}')">
                         <img src="${u.avatar || 'https://via.placeholder.com/150'}" alt="Avatar">
                         <span>@${u.username}</span>
                     </div>
@@ -1290,13 +1386,79 @@
         });
 
         function loadMyPosts() {
-            socket.emit('get-my-posts');
+            if (currentUser) {
+                socket.emit('get-user-profile', { username: currentUser.username }, (data) => {
+                    const grid = document.getElementById('my-posts-grid');
+                    if (!grid) return;
+                    grid.innerHTML = '';
+                    (data.posts || []).forEach(post => {
+                        const item = document.createElement('div');
+                        item.className = 'profile-post-item';
+                        if (post.type === 'video') {
+                            item.innerHTML = `<video src="${post.mediaUrl}"></video>`;
+                        } else {
+                            item.innerHTML = `<img src="${post.coverUrl || 'https://via.placeholder.com/150'}">`;
+                        }
+                        grid.appendChild(item);
+                    });
+                });
+            }
         }
 
-        function loadUserProfilePosts() {
-            if (currentUser) {
-                socket.emit('get-user-posts', { username: currentUser.username });
-            }
+        function viewProfile(username) {
+            switchTab('profile');
+            loadProfileData(username);
+        }
+
+        function loadProfileData(username) {
+            socket.emit('get-user-profile', { username }, (data) => {
+                if (!data || data.error) return;
+
+                const profileUser = document.getElementById('profile-username');
+                const followers = document.getElementById('stat-followers');
+                const following = document.getElementById('stat-following');
+                const likes = document.getElementById('stat-likes');
+                const avatarImg = document.getElementById('profile-avatar-img');
+
+                if (profileUser) profileUser.innerText = `@${data.username}`;
+                if (followers) followers.innerText = data.followersCount || 0;
+                if (following) following.innerText = data.followingCount || 0;
+                if (likes) likes.innerText = data.likesCount || 0;
+                if (avatarImg) avatarImg.src = data.avatar || 'https://via.placeholder.com/150';
+
+                const actionsBox = document.getElementById('profile-actions');
+                if (actionsBox) {
+                    if (currentUser && username === currentUser.username) {
+                        actionsBox.innerHTML = `<button class="auth-submit-btn" style="padding: 6px 20px; font-size: 0.8rem;" onclick="triggerAvatarUpload()">Cambiar Foto</button>`;
+                    } else {
+                        actionsBox.innerHTML = `<button class="auth-submit-btn" style="padding: 6px 20px; font-size: 0.8rem;" onclick="toggleFollow('${username}')">Seguir</button>`;
+                    }
+                }
+
+                const grid = document.getElementById('user-posts-grid');
+                if (grid) {
+                    grid.innerHTML = '';
+                    (data.posts || []).forEach(post => {
+                        const item = document.createElement('div');
+                        item.className = 'profile-post-item';
+                        if (post.type === 'video') {
+                            item.innerHTML = `<video src="${post.mediaUrl}"></video>`;
+                        } else {
+                            item.innerHTML = `<img src="${post.coverUrl || 'https://via.placeholder.com/150'}">`;
+                        }
+                        grid.appendChild(item);
+                    });
+                }
+            });
+        }
+
+        function toggleFollow(username) {
+            if (!currentUser) return;
+            socket.emit('toggle-follow', { targetUser: username, currentUser: currentUser.username }, (res) => {
+                if (res && res.success) {
+                    loadProfileData(username);
+                }
+            });
         }
 
         function triggerAvatarUpload() {
@@ -1305,15 +1467,20 @@
 
         function uploadAvatar(event) {
             const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64 = e.target.result;
-                const avatarImg = document.getElementById('profile-avatar-img');
-                if (avatarImg) avatarImg.src = base64;
-                socket.emit('update-avatar', { avatar: base64 });
-            };
-            reader.readAsDataURL(file);
+            if (!file || !currentUser) return;
+
+            const formData = new FormData();
+            formData.append('avatar', file);
+            formData.append('username', currentUser.username);
+
+            fetch('/api/update-avatar', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        currentUser.avatar = data.avatarUrl;
+                        loadProfileData(currentUser.username);
+                    }
+                });
         }
 
         function createPlaylist() {
@@ -1326,6 +1493,19 @@
                 }
             });
         }
+
+        socket.on('render-playlists', (userPlaylists) => {
+            const grid = document.getElementById('playlists-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            userPlaylists.forEach(pl => {
+                const card = document.createElement('div');
+                card.className = 'playlist-card';
+                card.style.background = pl.coverColor || '#1c1c1c';
+                card.innerHTML = `<div style="font-weight:bold; padding: 20px 0;">${pl.name}</div>`;
+                grid.appendChild(card);
+            });
+        });
     </script>
 </body>
 </html>
