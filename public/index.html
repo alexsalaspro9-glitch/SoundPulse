@@ -216,7 +216,6 @@
             overflow: hidden;
         }
 
-        /* Escalado contenedor móvil */
         .media-frame {
             width: 100%;
             max-width: 420px;
@@ -379,23 +378,6 @@
             object-fit: cover;
         }
 
-        .btn-follow {
-            background: var(--accent);
-            border: none;
-            color: #fff;
-            padding: 6px 16px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 0.8rem;
-            cursor: pointer;
-        }
-
-        .btn-follow.following {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: #fff;
-        }
-
         /* --- PERFIL --- */
         .profile-container {
             display: flex;
@@ -463,23 +445,10 @@
             overflow: hidden;
         }
 
-        .grid-item media, .grid-item img {
+        .grid-item img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-        }
-
-        /* --- PLAYLISTS --- */
-        .playlist-song-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--bg-card);
-            padding: 10px 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            border: 1px solid var(--border-color);
-            cursor: pointer;
         }
 
         /* --- REPRODUCTOR FLOTANTE --- */
@@ -928,6 +897,263 @@
         </div>
     </div>
 
-    <script src="/app.js"></script>
+    <!-- SCRIPT INCORPORADO CON LAS CORRECCIONES SOLICITADAS -->
+    <script>
+        const socket = io();
+
+        let currentUser = null;
+        let currentAuthMode = 'login';
+        let currentTab = 'feed';
+        let activeCommentsPostId = null;
+
+        function setAuthMode(mode) {
+            currentAuthMode = mode;
+            const loginBtn = document.getElementById('btn-mode-login');
+            const registerBtn = document.getElementById('btn-mode-register');
+            const submitBtn = document.getElementById('auth-submit-btn');
+            const errorText = document.getElementById('auth-error');
+            
+            errorText.innerText = '';
+
+            if (mode === 'login') {
+                loginBtn.classList.add('active');
+                registerBtn.classList.remove('active');
+                submitBtn.innerText = 'Entrar';
+            } else {
+                registerBtn.classList.add('active');
+                loginBtn.classList.remove('active');
+                submitBtn.innerText = 'Registrarse';
+            }
+        }
+
+        function handleAuth() {
+            const userinput = document.getElementById('auth-user').value.trim();
+            const passinput = document.getElementById('auth-pass').value.trim();
+            const errorText = document.getElementById('auth-error');
+
+            if (!userinput || !passinput) {
+                errorText.innerText = 'Por favor completa todos los campos.';
+                return;
+            }
+
+            if (currentAuthMode === 'register') {
+                socket.emit('register', { username: userinput, password: passinput }, (response) => {
+                    if (response && response.success) {
+                        currentUser = response.user;
+                        initApp();
+                    } else {
+                        errorText.innerText = (response && response.message) || 'Ya hay una cuenta con ese nombre.';
+                    }
+                });
+            } else {
+                socket.emit('login', { username: userinput, password: passinput }, (response) => {
+                    if (response && response.success) {
+                        currentUser = response.user;
+                        initApp();
+                    } else {
+                        errorText.innerText = (response && response.message) || 'Usuario o contraseña incorrectos.';
+                    }
+                });
+            }
+        }
+
+        function initApp() {
+            document.getElementById('auth-screen').classList.remove('active');
+            document.getElementById('app-screen').classList.add('active');
+            document.getElementById('profile-username').innerText = `@${currentUser.username}`;
+            document.getElementById('stat-followers').innerText = currentUser.followers ? currentUser.followers.length : 0;
+            document.getElementById('stat-following').innerText = currentUser.following ? currentUser.following.length : 0;
+            
+            if (currentUser.avatar) {
+                document.getElementById('profile-avatar-img').src = currentUser.avatar;
+            }
+
+            socket.emit('get-feed');
+            socket.emit('get-playlists');
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+
+            document.querySelectorAll('.bottom-nav-tiktok .nav-item').forEach(item => item.classList.remove('active'));
+            
+            const titles = {
+                'feed': 'FEED',
+                'search': 'DESCUBRIR',
+                'playlists': 'PLAYLISTS',
+                'myposts': 'MIS POSTS',
+                'profile': 'MI PERFIL'
+            };
+            
+            document.getElementById('top-title').innerText = titles[tabId] || 'SOUNDPULSE';
+
+            if (tabId === 'myposts') {
+                loadMyPosts();
+            } else if (tabId === 'profile') {
+                loadUserProfilePosts();
+            }
+        }
+
+        function toggleSideMenu() {
+            document.getElementById('side-menu').classList.toggle('open');
+        }
+
+        function toggleComments(postId) {
+            const panel = document.getElementById('comments-panel');
+            if (postId) {
+                activeCommentsPostId = postId;
+                panel.classList.add('open');
+                socket.emit('get-comments', { postId });
+            } else {
+                panel.classList.remove('open');
+                activeCommentsPostId = null;
+            }
+        }
+
+        function addComment() {
+            const input = document.getElementById('comment-input');
+            const text = input.value.trim();
+            if (!text || !activeCommentsPostId) return;
+
+            socket.emit('add-comment', { postId: activeCommentsPostId, text }, (response) => {
+                if (response && response.success) {
+                    input.value = '';
+                    socket.emit('get-comments', { postId: activeCommentsPostId });
+                }
+            });
+        }
+
+        socket.on('render-comments', (comments) => {
+            const list = document.getElementById('comments-list');
+            list.innerHTML = '';
+            comments.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'comment-item';
+                item.innerHTML = `<span class="comment-user">@${c.username}:</span> <span class="comment-text">${c.text}</span>`;
+                list.appendChild(item);
+            });
+        });
+
+        function togglePlayPause() {
+            const audio = document.getElementById('global-audio-player');
+            const playIcon = document.getElementById('play-icon');
+            const pauseIcon = document.getElementById('pause-icon');
+
+            if (audio.paused) {
+                audio.play();
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+            } else {
+                audio.pause();
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+            }
+        }
+
+        function setVolume(val) {
+            const audio = document.getElementById('global-audio-player');
+            audio.volume = val;
+        }
+
+        function openUploadModal() {
+            document.getElementById('modal-upload').classList.add('active');
+        }
+
+        function openCreatePlaylistModal() {
+            document.getElementById('modal-playlist').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function checkFileType(event) {
+            const file = event.target.files[0];
+            const coverContainer = document.getElementById('mp3-cover-container');
+            if (file && file.type.includes('audio')) {
+                coverContainer.style.display = 'block';
+            } else {
+                coverContainer.style.display = 'none';
+            }
+        }
+
+        function submitPost() {
+            const title = document.getElementById('post-title-input').value.trim();
+            const fileInput = document.getElementById('post-file-input');
+
+            if (!title || fileInput.files.length === 0) {
+                alert('Por favor añade un título y un archivo multimedia.');
+                return;
+            }
+
+            closeModal('modal-upload');
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('app-screen').classList.remove('active');
+            document.getElementById('auth-screen').classList.add('active');
+            document.getElementById('auth-user').value = '';
+            document.getElementById('auth-pass').value = '';
+        }
+
+        function searchUsers() {
+            const query = document.getElementById('search-input').value.trim();
+            socket.emit('search-users', { query });
+        }
+
+        socket.on('search-results', (results) => {
+            const container = document.getElementById('search-results');
+            container.innerHTML = '';
+            results.forEach(u => {
+                const div = document.createElement('div');
+                div.className = 'user-search-result';
+                div.innerHTML = `
+                    <div class="user-result-info">
+                        <img src="${u.avatar || 'https://via.placeholder.com/150'}" alt="Avatar">
+                        <span>@${u.username}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        });
+
+        function loadMyPosts() {
+            socket.emit('get-my-posts');
+        }
+
+        function loadUserProfilePosts() {
+            socket.emit('get-user-posts', { username: currentUser.username });
+        }
+
+        function triggerAvatarUpload() {
+            document.getElementById('avatar-file-input').click();
+        }
+
+        function uploadAvatar(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                document.getElementById('profile-avatar-img').src = base64;
+                socket.emit('update-avatar', { avatar: base64 });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function createPlaylist() {
+            const name = document.getElementById('pl-name-input').value.trim();
+            if (!name) return;
+            socket.emit('create-playlist', { name }, (res) => {
+                if (res && res.success) {
+                    closeModal('modal-playlist');
+                    socket.emit('get-playlists');
+                }
+            });
+        }
+    </script>
 </body>
 </html>
