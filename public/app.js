@@ -3,12 +3,13 @@ let currentUser = null;
 let isPCMode = false;
 let currentUploadType = 'file';
 let tracksData = [];
-let playlistsData = {}; // playlistName -> array of tracks
+let playlistsData = {};
 let likedTracks = new Set();
+let currentActiveTrackForComments = null;
 
 const audioElement = document.getElementById('audio-element');
 
-// AUTENTICACIÓN
+// LOGIN Y REGISTRO
 async function handleAuth(type) {
     const username = document.getElementById('username').value.trim().toLowerCase();
     const password = document.getElementById('password').value.trim();
@@ -28,7 +29,7 @@ async function handleAuth(type) {
 
         const data = await res.json();
         if (!res.ok) {
-            errorMsg.innerText = data.error || "Error de autenticación";
+            errorMsg.innerText = data.error || "Error al autenticar";
             return;
         }
 
@@ -43,35 +44,28 @@ async function handleAuth(type) {
         loadFeed();
 
     } catch (e) {
-        errorMsg.innerText = "Error al conectar con el servidor";
+        errorMsg.innerText = "Error de conexión con el servidor";
     }
 }
 
-// NAVEGACIÓN ENTRE VISTAS
-function navTo(viewName) {
+// NAVEGACIÓN VISTAS
+function navTo(viewName, btn) {
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
 
     document.getElementById(`view-${viewName}`).classList.add('active');
-    event.currentTarget.classList.add('active');
+    if (btn) btn.classList.add('active');
 
-    if (viewName === 'profile') {
-        renderProfileGrid('playlists');
-    }
+    if (viewName === 'profile') renderProfileGrid('playlists');
 }
 
-function switchFeedTab(tab) {
-    document.querySelectorAll('.top-tabs .tab-item').forEach(el => el.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-}
-
-// CARGAR FEED
+// CARGAR FEED DE TRACKS
 async function loadFeed() {
     try {
         const res = await fetch('/api/tracks');
         tracksData = await res.json();
         const container = document.getElementById('feed-container');
-        
+
         if (tracksData.length === 0) {
             document.getElementById('empty-feed').style.display = 'flex';
             return;
@@ -83,6 +77,7 @@ async function loadFeed() {
         tracksData.forEach(track => {
             const item = document.createElement('div');
             item.className = 'feed-item';
+
             item.innerHTML = `
                 <div class="feed-overlay">
                     <div class="feed-user">@${track.artist}</div>
@@ -93,9 +88,13 @@ async function loadFeed() {
                         <div class="action-icon">♥</div>
                         <span>${track.likes || 0}</span>
                     </button>
+                    <button class="action-btn" onclick="openCommentsModal('${track.id}')">
+                        <div class="action-icon">💬</div>
+                        <span>${(track.comments || []).length}</span>
+                    </button>
                     <button class="action-btn" onclick="openPlaylistModal('${track.id}')">
                         <div class="action-icon">+</div>
-                        <span>Guardar</span>
+                        <span>Playlist</span>
                     </button>
                     <button class="action-btn" onclick="triggerPlay('${track.url}', '${track.title}', '${track.artist}')">
                         <div class="action-icon">▶</div>
@@ -106,91 +105,31 @@ async function loadFeed() {
             container.appendChild(item);
         });
     } catch (e) {
-        console.error("Error al cargar el feed", e);
+        console.error("Error al cargar feed", e);
     }
 }
 
-// LIKES ÚNICOS POR PERSONA
+// BÚSQUEDA GLOBAL (HEADER)
+function handleGlobalSearch(e) {
+    const query = e.target.value.toLowerCase().trim();
+    if (e.key === 'Enter' && query) {
+        navTo('discover');
+        const results = document.getElementById('search-results');
+        results.innerHTML = `<p style="padding:10px;">Buscando resultados para <strong>"${query}"</strong>...</p>`;
+    }
+}
+
+// ANIMACIÓN Y SISTEMA DE LIKE ÚNICO
 function likeTrack(trackId, btn) {
-    if (likedTracks.has(trackId)) return; // Solo 1 like por persona
+    if (likedTracks.has(trackId)) return;
     likedTracks.add(trackId);
-    
+
     btn.classList.add('liked');
     const span = btn.querySelector('span');
     span.innerText = parseInt(span.innerText) + 1;
 }
 
-// PLAYLISTS
-let currentSelectedTrackForPL = null;
-
-function openPlaylistModal(trackId) {
-    currentSelectedTrackForPL = trackId;
-    const list = document.getElementById('playlist-options');
-    list.innerHTML = '';
-
-    const keys = Object.keys(playlistsData);
-    if (keys.length === 0) {
-        list.innerHTML = '<p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">No tienes playlists. Crea una abajo:</p>';
-    } else {
-        keys.forEach(plName => {
-            const b = document.createElement('button');
-            b.className = 'btn-outline';
-            b.style.width = '100%';
-            b.style.marginBottom = '5px';
-            b.innerText = plName;
-            b.onclick = () => addToPlaylist(plName);
-            list.appendChild(b);
-        });
-    }
-
-    document.getElementById('playlist-modal').style.display = 'flex';
-}
-
-function createPlaylist() {
-    const name = document.getElementById('new-playlist-name').value.trim();
-    if (!name) return;
-    if (!playlistsData[name]) playlistsData[name] = [];
-    addToPlaylist(name);
-}
-
-function addToPlaylist(plName) {
-    if (currentSelectedTrackForPL && !playlistsData[plName].includes(currentSelectedTrackForPL)) {
-        playlistsData[plName].push(currentSelectedTrackForPL);
-    }
-    closePlaylistModal();
-}
-
-function closePlaylistModal() { document.getElementById('playlist-modal').style.display = 'none'; }
-
-// PERFIL GRID
-function switchProfileTab(type) {
-    document.querySelectorAll('.p-tab').forEach(el => el.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-    renderProfileGrid(type);
-}
-
-function renderProfileGrid(type) {
-    const grid = document.getElementById('profile-grid');
-    grid.innerHTML = '';
-
-    if (type === 'playlists') {
-        const keys = Object.keys(playlistsData);
-        if (keys.length === 0) {
-            grid.innerHTML = '<p style="grid-column: span 3; text-align:center; padding:20px; color:#888;">Sin Playlists</p>';
-            return;
-        }
-        keys.forEach(pl => {
-            const card = document.createElement('div');
-            card.className = 'grid-card';
-            card.innerText = `📁 ${pl}`;
-            grid.appendChild(card);
-        });
-    } else {
-        grid.innerHTML = '<p style="grid-column: span 3; text-align:center; padding:20px; color:#888;">Sin Publicaciones</p>';
-    }
-}
-
-// MODAL PUBLICACIÓN
+// PUBLICAR ARCHIVO / YOUTUBE
 function openUploadModal() { document.getElementById('upload-modal').style.display = 'flex'; }
 function closeUploadModal() { document.getElementById('upload-modal').style.display = 'none'; }
 
@@ -227,7 +166,84 @@ async function handlePublish(e) {
     loadFeed();
 }
 
-// CONTROL PC
+// COMENTARIOS
+function openCommentsModal(trackId) {
+    currentActiveTrackForComments = trackId;
+    document.getElementById('comments-modal').style.display = 'flex';
+    renderComments();
+}
+
+function closeCommentsModal() {
+    document.getElementById('comments-modal').style.display = 'none';
+}
+
+function renderComments() {
+    const list = document.getElementById('comments-list');
+    const track = tracksData.find(t => t.id === currentActiveTrackForComments);
+    list.innerHTML = '';
+
+    if (!track || !track.comments || track.comments.length === 0) {
+        list.innerHTML = '<p style="color:#666; text-align:center;">Sé el primero en comentar.</p>';
+        return;
+    }
+
+    track.comments.forEach(c => {
+        const div = document.createElement('div');
+        div.style.marginBottom = '8px';
+        div.innerHTML = `<strong style="color:var(--red-main)">@${c.user}:</strong> <span>${c.text}</span>`;
+        list.appendChild(div);
+    });
+}
+
+async function postComment() {
+    const input = document.getElementById('comment-input');
+    const text = input.value.trim();
+    if (!text || !currentActiveTrackForComments) return;
+
+    await fetch(`/api/tracks/${currentActiveTrackForComments}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: currentUser, text })
+    });
+
+    input.value = '';
+    const track = tracksData.find(t => t.id === currentActiveTrackForComments);
+    if (track) {
+        if (!track.comments) track.comments = [];
+        track.comments.push({ user: currentUser, text });
+    }
+    renderComments();
+}
+
+// PLAYLISTS EN PERFIL
+function promptCreatePlaylist() {
+    const name = prompt("Escribe el nombre de tu nueva Playlist:");
+    if (name && name.trim()) {
+        playlistsData[name.trim()] = [];
+        renderProfileGrid('playlists');
+    }
+}
+
+function renderProfileGrid(type) {
+    const grid = document.getElementById('profile-grid');
+    grid.innerHTML = '';
+
+    if (type === 'playlists') {
+        const keys = Object.keys(playlistsData);
+        if (keys.length === 0) {
+            grid.innerHTML = '<p style="grid-column: span 3; text-align:center; padding:20px; color:#666;">Sin Playlists creadas</p>';
+            return;
+        }
+        keys.forEach(pl => {
+            const card = document.createElement('div');
+            card.className = 'grid-card';
+            card.innerText = `📁 ${pl}`;
+            grid.appendChild(card);
+        });
+    }
+}
+
+// CONTROLES PC Y SOCKETS
 function togglePCMode() {
     isPCMode = !isPCMode;
     const btn = document.getElementById('pc-mode-btn');

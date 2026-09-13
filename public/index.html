@@ -9,7 +9,7 @@
 </head>
 <body>
 
-    <!-- AUTENTICACIÓN (LOGIN / REGISTRO 60 DÍAS) -->
+    <!-- PANTALLA DE LOGIN -->
     <div id="auth-screen" class="screen active">
         <div class="auth-card">
             <h1 class="logo-text">SoundPulse</h1>
@@ -26,66 +26,68 @@
         </div>
     </div>
 
-    <!-- APLICACIÓN PRINCIPAL -->
+    <!-- PANTALLA PRINCIPAL -->
     <div id="app-screen" class="screen">
 
-        <!-- HEADER SUPERIOR (PC CONTROL & TOP NAV) -->
+        <!-- HEADER SUPERIOR CON BARRA DE BÚSQUEDA TIKTOK (IMAGEN 1) -->
         <header class="top-header">
-            <div class="top-tabs">
-                <span class="tab-item" onclick="switchFeedTab('following')">Siguiendo</span>
-                <span class="tab-item active" onclick="switchFeedTab('foryou')">Para ti</span>
+            <div class="search-bar-tiktok">
+                <span class="tk-logo">♪</span>
+                <input type="text" id="global-search" placeholder="Buscar amigos o temas..." onkeyup="handleGlobalSearch(event)">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                </svg>
             </div>
             <button id="pc-mode-btn" class="pc-btn" onclick="togglePCMode()">PC Mode: OFF</button>
         </header>
 
-        <!-- SECCIÓN 1: FEED PRINCIPAL (HOME) -->
+        <!-- PESTAÑAS FEED (SIGUIENDO / PARA TI) -->
+        <div class="feed-tabs-overlay">
+            <span class="tab-item" onclick="switchFeedTab('following')">Siguiendo</span>
+            <span class="tab-item active" onclick="switchFeedTab('foryou')">Para ti</span>
+        </div>
+
+        <!-- VISTA 1: FEED -->
         <section id="view-home" class="view-section active">
             <div id="feed-container" class="feed-container">
-                <!-- Si está vacío, se muestra la pantalla en negro -->
                 <div class="empty-feed" id="empty-feed">
                     <p class="empty-title">Sin contenido aún</p>
-                    <p class="empty-sub">Sé el primero en subir una canción o video</p>
+                    <p class="empty-sub">Sé el primero en subir una canción o link de YouTube</p>
                 </div>
             </div>
         </section>
 
-        <!-- SECCIÓN 2: BUSCADOR & AMIGOS (DISCOVER) -->
+        <!-- VISTA 2: RESULTADOS DE BÚSQUEDA / EXPLORAR -->
         <section id="view-discover" class="view-section">
-            <div class="search-header">
-                <input type="text" id="search-input" placeholder="Buscar amigos o usuarios..." onkeyup="searchUsers()">
+            <div class="discover-box">
+                <h3 style="margin-bottom:15px;">Resultados de Búsqueda</h3>
+                <div id="search-results" class="user-list">
+                    <p class="placeholder-text">Escribe en la barra de búsqueda superior para buscar usuarios o canciones.</p>
+                </div>
             </div>
-            <div id="search-results" class="user-list"></div>
         </section>
 
-        <!-- SECCIÓN 3: MENSAJES (INBOX) -->
+        <!-- VISTA 3: INBOX (MENSAJES) -->
         <section id="view-inbox" class="view-section">
-            <div class="inbox-header"><h2>Mensajes</h2></div>
-            <div id="chat-list" class="chat-list">
-                <p class="placeholder-text">Selecciona un amigo en el buscador para chatear</p>
-            </div>
-            <div id="active-chat" class="active-chat" style="display:none;">
-                <div class="chat-title" id="chat-with-user">@usuario</div>
-                <div id="chat-messages" class="chat-messages"></div>
+            <div class="inbox-container">
+                <h2>Mensajes directos</h2>
+                <div id="chat-messages" class="chat-messages">
+                    <p class="placeholder-text">Selecciona un amigo para hablar...</p>
+                </div>
                 <div class="chat-input-box">
                     <input type="text" id="chat-input" placeholder="Escribe un mensaje...">
-                    <button onclick="sendChatMessage()">Enviar</button>
+                    <button class="btn-red-sm" onclick="sendChatMessage()">Enviar</button>
                 </div>
             </div>
         </section>
 
-        <!-- SECCIÓN 4: PERFIL DE USUARIO (ME) -->
+        <!-- VISTA 4: PERFIL -->
         <section id="view-profile" class="view-section">
             <div class="profile-container">
                 <div class="profile-header">
-                    <div class="avatar-circle">
-                        <span id="profile-initial">U</span>
-                    </div>
+                    <div class="avatar-circle"><span id="profile-initial">U</span></div>
                     <h3 id="profile-username">@yourname</h3>
                     <p class="verified-tag">✓ cuenta verificada</p>
-                    
-                    <div class="profile-actions">
-                        <button class="btn-red-sm" id="follow-btn" style="display:none;" onclick="toggleFollow()">Seguir</button>
-                    </div>
 
                     <div class="stats-row">
                         <div class="stat-item"><strong id="stat-followers">0</strong><span>Seguidores</span></div>
@@ -94,43 +96,52 @@
                     </div>
                 </div>
 
-                <!-- Pestañas del perfil -->
+                <div class="profile-actions-bar">
+                    <button class="btn-red-sm" onclick="promptCreatePlaylist()">+ Crear Playlist</button>
+                </div>
+
                 <div class="profile-tabs">
                     <button class="p-tab active" onclick="switchProfileTab('playlists')">♥ Playlists</button>
                     <button class="p-tab" onclick="switchProfileTab('uploads')">田 Mis Posts</button>
                 </div>
 
-                <!-- Grid de Contenido -->
-                <div id="profile-grid" class="profile-grid">
-                    <!-- Se llena con las playlists o videos del usuario -->
-                </div>
+                <div id="profile-grid" class="profile-grid"></div>
             </div>
         </section>
 
-        <!-- BARRA DE NAVEGACIÓN INFERIOR (ESTILO TIKTOK) -->
-        <nav class="bottom-nav">
-            <button class="nav-item active" onclick="navTo('home')">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <!-- NAVEGACIÓN INFERIOR CURVA (IMAGEN 2) -->
+        <nav class="bottom-nav-curved">
+            <svg class="nav-curve-bg" viewBox="0 0 375 60" preserveAspectRatio="none">
+                <path d="M0,0 L140,0 C155,0 160,30 187.5,30 C215,30 220,0 235,0 L375,0 L375,60 L0,60 Z" fill="#000000" stroke="#2a2a2a" stroke-width="1"/>
+            </svg>
+
+            <button class="nav-btn active" onclick="navTo('home', this)">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
                 <span>Inicio</span>
             </button>
-            <button class="nav-item" onclick="navTo('discover')">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+
+            <button class="nav-btn" onclick="navTo('discover', this)">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                 <span>Buscar</span>
             </button>
-            <button class="nav-item btn-plus" onclick="openUploadModal()">
-                <div class="plus-icon">+</div>
+
+            <!-- BOTÓN + CENTRAL FLOTANTE -->
+            <button class="nav-btn-plus" onclick="openUploadModal()">
+                <div class="plus-circle">+</div>
             </button>
-            <button class="nav-item" onclick="navTo('inbox')">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+
+            <button class="nav-btn" onclick="navTo('inbox', this)">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                 <span>Inbox</span>
             </button>
-            <button class="nav-item" onclick="navTo('profile')">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+
+            <button class="nav-btn" onclick="navTo('profile', this)">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                 <span>Perfil</span>
             </button>
         </nav>
 
-        <!-- BARRA REPRODUCTOR PC (FLOTANTE INFERIOR) -->
+        <!-- BARRA REPRODUCTOR PC -->
         <div id="pc-player-bar" class="pc-player-bar">
             <div class="player-info">
                 <strong id="player-title">Esperando pista...</strong>
@@ -144,26 +155,23 @@
         </div>
     </div>
 
-    <!-- MODAL DE PUBLICACIÓN (SUBIR ARCHIVO O PEGAR LINK DE YOUTUBE) -->
+    <!-- MODAL SUBIR YOUTUBE / ARCHIVO -->
     <div id="upload-modal" class="modal">
         <div class="modal-box">
-            <h3>Añadir Música o Video</h3>
-            
+            <h3>Añadir a SoundPulse</h3>
             <div class="upload-type-selector">
-                <button type="button" id="tab-btn-file" class="ut-btn active" onclick="switchUploadType('file')">Subir Archivo</button>
-                <button type="button" id="tab-btn-url" class="ut-btn" onclick="switchUploadType('url')">Link de YouTube / URL</button>
+                <button type="button" id="tab-btn-file" class="ut-btn active" onclick="switchUploadType('file')">Subir Archivo PC</button>
+                <button type="button" id="tab-btn-url" class="ut-btn" onclick="switchUploadType('url')">Link de YouTube</button>
             </div>
 
             <form id="upload-form" onsubmit="handlePublish(event)">
-                <input type="text" id="up-title" placeholder="Título del tema / video" required>
+                <input type="text" id="up-title" placeholder="Título de la Canción" required>
                 <input type="text" id="up-artist" placeholder="Artista / Creador" required>
 
-                <!-- Opción Archivo -->
                 <div id="input-file-group">
                     <input type="file" id="up-file" accept="audio/*,video/*">
                 </div>
 
-                <!-- Opción URL / YouTube -->
                 <div id="input-url-group" style="display:none;">
                     <input type="url" id="up-url" placeholder="https://www.youtube.com/watch?v=...">
                 </div>
@@ -176,17 +184,31 @@
         </div>
     </div>
 
-    <!-- MODAL PARA AÑADIR A PLAYLIST -->
+    <!-- MODAL DE COMENTARIOS -->
+    <div id="comments-modal" class="modal-bottom">
+        <div class="comments-box">
+            <div class="comments-header">
+                <h4>Comentarios</h4>
+                <button onclick="closeCommentsModal()" class="close-btn">✕</button>
+            </div>
+            <div id="comments-list" class="comments-list"></div>
+            <div class="comments-input-area">
+                <input type="text" id="comment-input" placeholder="Añadir comentario...">
+                <button class="btn-red-sm" onclick="postComment()">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SELECCIONAR / CREAR PLAYLIST -->
     <div id="playlist-modal" class="modal">
         <div class="modal-box">
             <h3>Añadir a Playlist</h3>
             <div id="playlist-options" class="playlist-list"></div>
-            <hr class="divider">
-            <div class="new-pl-box">
+            <div class="new-pl-box" style="margin-top:10px;">
                 <input type="text" id="new-playlist-name" placeholder="Nombre de nueva playlist">
-                <button class="btn-red-sm" onclick="createPlaylist()">Crear y Añadir</button>
+                <button class="btn-red-sm" onclick="createPlaylistFromModal()">Crear y Añadir</button>
             </div>
-            <button class="btn-gray full-width" onclick="closePlaylistModal()">Cerrar</button>
+            <button class="btn-gray full-width" style="margin-top:10px;" onclick="closePlaylistModal()">Cerrar</button>
         </div>
     </div>
 
